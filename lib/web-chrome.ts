@@ -28,7 +28,9 @@ export function applyWebChrome(canvas: string, colorScheme: 'dark' | 'light'): (
   doc.body.style.height = '100%';
   doc.body.style.overflow = 'hidden';
   const style = doc.createElement('style');
-  style.textContent = 'html, body, #root { height: 100%; background-color: transparent; }';
+  // Text fields show focus with their own accent border, so the browser ring is dropped.
+  style.textContent =
+    'html, body, #root { height: 100%; background-color: transparent; } input:focus { outline: none; }';
   doc.head.appendChild(style);
   return () => {
     style.remove();

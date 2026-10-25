@@ -307,6 +307,7 @@ function DateField({
 }) {
   const { palette, name } = useTheme();
   const type = useType();
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.dateField}>
       <Text style={[styles.dateLabel, { color: palette.textSecondary, fontFamily: type.sansMedium }]}>{label}</Text>
@@ -322,9 +323,20 @@ function DateField({
         maxLength={10}
         autoCapitalize="none"
         autoCorrect={false}
+        onFocus={() => {
+          setFocused(true);
+        }}
+        onBlur={() => {
+          setFocused(false);
+        }}
         style={[
           styles.dateInput,
-          { color: palette.text, borderColor: palette.border, backgroundColor: palette.input, fontFamily: type.sans },
+          {
+            color: palette.text,
+            borderColor: focused ? palette.accent : palette.border,
+            backgroundColor: palette.input,
+            fontFamily: type.sans,
+          },
         ]}
       />
     </View>

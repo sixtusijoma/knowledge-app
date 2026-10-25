@@ -79,7 +79,15 @@ function StatsBody({ stats, updatedAt }: { stats: Stats; updatedAt: Date | null 
         <Tile label="X bookmarks" value={formatCount(stats.x)} testID="stats-x" />
         <Tile label="Grok chats" value={formatCount(stats.grok)} testID="stats-grok" />
       </View>
-      <Panel eyebrow="By month" title="Entries" note="Dated entries, split by source.">
+      <Panel
+        eyebrow="By month"
+        title="Entries"
+        note={
+          stats.months.length > 8
+            ? 'Dated entries, split by source. Swipe the chart for earlier months.'
+            : 'Dated entries, split by source.'
+        }
+      >
         <MonthChart stats={stats} />
       </Panel>
       <Panel eyebrow="Sources" title="Where they came from" note="Each entry has one source.">
