@@ -1,0 +1,37 @@
+export type Source = 'X Bookmark' | 'Grok Chat';
+
+export type Importance = 'High' | 'Medium' | 'Low';
+
+export type SourceFilter = 'all' | Source;
+
+export type ImportanceFilter = 'all' | Importance;
+
+export type Item = {
+  id: string;
+  source: Source;
+  external_id: string;
+  title: string;
+  summary: string | null;
+  topics: string[];
+  importance: Importance | null;
+  author: string | null;
+  item_date: string | null;
+  link: string | null;
+  created_at: string;
+};
+
+export type ItemFilters = {
+  source: SourceFilter;
+  topics: string[];
+  importance: ImportanceFilter;
+  month: string | null;
+  from: string | null;
+  to: string | null;
+};
+
+export type StatRow = {
+  source: Source;
+  topics: string[];
+  importance: Importance | null;
+  item_date: string | null;
+};
