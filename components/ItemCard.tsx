@@ -2,22 +2,23 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SourceBadge } from '@/components/SourceBadge';
+import { TopicChip } from '@/components/TopicChip';
 import { formatItemDate } from '@/lib/dates';
-import { importanceLabel, meaningfulSummary } from '@/lib/format';
-import { importanceColor, useTheme, useType } from '@/lib/theme';
+import { meaningfulSummary } from '@/lib/format';
+import { useTheme, useType } from '@/lib/theme';
 import type { Item } from '@/lib/types';
 
 export function ItemCard({ item }: { item: Item }) {
   const { palette } = useTheme();
   const type = useType();
-  const tone = importanceColor(palette, item.importance);
+  const tone = item.source === 'X Bookmark' ? palette.xBar : palette.grokBar;
   const summary = meaningfulSummary(item);
 
   return (
     <Pressable
       testID="item-card"
       accessibilityRole="button"
-      accessibilityLabel={`${item.title}. ${item.source}, ${formatItemDate(item.item_date)}, ${importanceLabel(item.importance)} importance.`}
+      accessibilityLabel={`${item.title}. ${item.source}, ${formatItemDate(item.item_date)}.`}
       onPress={() => {
         router.push({
           pathname: '/item/[id]',
@@ -38,9 +39,6 @@ export function ItemCard({ item }: { item: Item }) {
         <Text style={[styles.date, { color: palette.textMuted, fontFamily: type.sans }]}>
           {formatItemDate(item.item_date)}
         </Text>
-        <Text style={[styles.importance, { color: tone, fontFamily: type.sansMedium }]}>
-          {importanceLabel(item.importance)}
-        </Text>
       </View>
       <Text numberOfLines={3} style={[styles.title, { color: palette.text, fontFamily: type.serif }]}>
         {item.title}
@@ -53,9 +51,7 @@ export function ItemCard({ item }: { item: Item }) {
       <View style={styles.footer}>
         <View style={styles.topics}>
           {item.topics.map((topic) => (
-            <View key={topic} style={[styles.chip, { backgroundColor: palette.chip }]}>
-              <Text style={[styles.chipText, { color: palette.chipText, fontFamily: type.sansMedium }]}>{topic}</Text>
-            </View>
+            <TopicChip key={topic} topic={topic} />
           ))}
         </View>
         {item.author ? (
@@ -83,12 +79,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   date: {
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
-  },
-  importance: {
     marginLeft: 'auto',
     fontSize: 12,
+    fontVariant: ['tabular-nums'],
   },
   title: {
     fontSize: 18,
@@ -109,14 +102,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-  },
-  chip: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  chipText: {
-    fontSize: 12,
   },
   author: {
     maxWidth: 110,

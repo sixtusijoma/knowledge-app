@@ -1,15 +1,25 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ActivityChart } from '@/components/ActivityChart';
 import { PrimaryButton } from '@/components/Buttons';
-import { ImportanceDonut, MonthChart, SourceSplit, TopicBars } from '@/components/Charts';
+import { MonthChart, SourceSplit, TopicBars } from '@/components/Charts';
 import { CloseIcon } from '@/components/Icons';
 import { Banner, ErrorState, StatsSkeleton } from '@/components/StateViews';
+import {
+  activityCallout,
+  bucketBounds,
+  bucketsFromRows,
+  clipRange,
+  defaultActivityUnit,
+  type ActivityBucket,
+  type ActivityUnit,
+} from '@/lib/activity';
 import { formatClock, formatMonthKey } from '@/lib/dates';
 import { useFeedFilters } from '@/lib/feed-filters';
-import { rangeLabel, type DateRange } from '@/lib/filters';
+import { EMPTY_FILTERS, rangeLabel, resolveDateRange, type DateRange } from '@/lib/filters';
 import { formatCount, formatEntries, sourcePlural } from '@/lib/format';
 import {
   appliedStatsRange,
@@ -24,7 +34,8 @@ import {
   type StatsSelection,
 } from '@/lib/stats';
 import { useTheme, useType } from '@/lib/theme';
-import type { Importance, Source } from '@/lib/types';
+import type { Source } from '@/lib/types';
+import { useActivity } from '@/lib/use-activity';
 import { useStats } from '@/lib/use-stats';
 
 const PRESETS: { id: RangePreset; label: string; testID: string }[] = [
@@ -43,32 +54,75 @@ export default function StatsScreen() {
   const router = useRouter();
   const { applyFilters } = useFeedFilters();
   const { rows, updatedAt, loading, refreshing, error, refresh, retry } = useStats();
+  const [now] = useState(() => new Date());
   const [selection, setSelection] = useState<StatsSelection>(EMPTY_SELECTION);
   const [preset, setPreset] = useState<RangePreset>('all');
+  const [unit, setUnit] = useState<ActivityUnit>('month');
   const [draftFrom, setDraftFrom] = useState<string | null>(null);
   const [draftTo, setDraftTo] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<string | null>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (openTimer.current) {
+        clearTimeout(openTimer.current);
+      }
+    };
+  }, []);
 
   const views = useMemo(() => {
     if (!rows || !updatedAt) {
       return null;
     }
-    const applied = appliedStatsRange(preset, updatedAt, draftFrom, draftTo);
-    const totals = filteredStats(rows, selection, applied.range, null, updatedAt);
-    const months = filteredStats(rows, selection, applied.range, 'month', updatedAt);
-    const sources = filteredStats(rows, selection, applied.range, 'source', updatedAt);
-    const importance = filteredStats(rows, selection, applied.range, 'importance', updatedAt);
+    const applied = appliedStatsRange(preset, now, draftFrom, draftTo);
+    const totals = filteredStats(rows, selection, applied.range, null, now);
+    const months = filteredStats(rows, selection, applied.range, 'month', now);
+    const sources = filteredStats(rows, selection, applied.range, 'source', now);
     const topics = withSelectedTopic(
-      filteredStats(rows, selection, applied.range, 'topic', updatedAt),
+      filteredStats(rows, selection, applied.range, 'topic', now),
       selection.topic,
     );
-    return { ...applied, totals, months, sources, importance, topics };
-  }, [rows, updatedAt, preset, draftFrom, draftTo, selection]);
+    return { ...applied, totals, months, sources, topics };
+  }, [rows, updatedAt, preset, draftFrom, draftTo, selection, now]);
+
+  const activityLimit = useMemo(() => {
+    const applied = appliedStatsRange(preset, now, draftFrom, draftTo);
+    return resolveDateRange({
+      ...EMPTY_FILTERS,
+      from: applied.range.from,
+      to: applied.range.to,
+      month: selection.month,
+    });
+  }, [preset, now, draftFrom, draftTo, selection.month]);
+
+  const activity = useActivity({
+    unit,
+    range: activityLimit,
+    source: selection.source,
+    topic: selection.topic,
+  });
+  const phoneBuckets = useMemo(() => {
+    if (activity.buckets || !activity.error || !rows) {
+      return null;
+    }
+    return bucketsFromRows(rows, unit, activityLimit, selection.source, selection.topic);
+  }, [activity.buckets, activity.error, rows, unit, activityLimit, selection.source, selection.topic]);
+  const shownActivity = {
+    buckets: activity.buckets ?? phoneBuckets,
+    loading: activity.loading && phoneBuckets === null,
+    error: phoneBuckets ? null : activity.error,
+    retry: activity.retry,
+    sourceLabel: activity.buckets ? 'Counted in the database.' : phoneBuckets ? 'Counted on this phone.' : null,
+  };
 
   const chartOn = chartSelectionActive(selection);
   const rangeChip = views ? rangeChipLabel(preset, views.range) : null;
 
   function choosePreset(next: RangePreset) {
+    if (next !== preset) {
+      setUnit(defaultActivityUnit(next));
+    }
     setPreset(next);
     setTooltip(null);
   }
@@ -91,6 +145,28 @@ export default function StatsScreen() {
     }
     applyFilters(filtersFromStats(selection, views.range));
     router.navigate('/');
+  }
+
+  function inspectBucket(bucket: ActivityBucket) {
+    setTooltip(activityCallout(unit, bucket, activityLimit));
+  }
+
+  function openBucket(bucket: ActivityBucket) {
+    const bounds = clipRange(bucketBounds(unit, bucket.bucket), activityLimit);
+    inspectBucket(bucket);
+    if (openTimer.current) {
+      clearTimeout(openTimer.current);
+    }
+    openTimer.current = setTimeout(() => {
+      applyFilters({
+        source: selection.source ?? 'all',
+        topics: selection.topic ? [selection.topic] : [],
+        month: null,
+        from: bounds.from,
+        to: bounds.to,
+      });
+      router.navigate('/');
+    }, 700);
   }
 
   const rangeActive = Boolean(views && (views.range.from || views.range.to));
@@ -195,16 +271,6 @@ export default function StatsScreen() {
               }}
             />
           ) : null}
-          {selection.importance ? (
-            <Chip
-              testID="stats-chip-importance"
-              label={selection.importance}
-              onPress={() => {
-                setSelection({ ...selection, importance: null });
-                setTooltip(null);
-              }}
-            />
-          ) : null}
           {selection.topic ? (
             <Chip
               testID="stats-chip-topic"
@@ -281,16 +347,18 @@ export default function StatsScreen() {
           totals={views.totals}
           months={views.months}
           sources={views.sources}
-          importance={views.importance}
           topics={views.topics}
           selection={selection}
           updatedAt={updatedAt}
+          unit={unit}
+          activityLimit={activityLimit}
+          activity={shownActivity}
+          onUnit={setUnit}
           onInspect={setTooltip}
+          onInspectBucket={inspectBucket}
+          onOpenBucket={openBucket}
           onToggleSource={(source) => {
             setSelection((current) => toggleSelection(current, 'source', source));
-          }}
-          onToggleImportance={(importance) => {
-            setSelection((current) => toggleSelection(current, 'importance', importance));
           }}
           onToggleTopic={(topic) => {
             setSelection((current) => toggleSelection(current, 'topic', topic));
@@ -344,26 +412,40 @@ function StatsBody({
   totals,
   months,
   sources,
-  importance,
   topics,
   selection,
   updatedAt,
+  unit,
+  activityLimit,
+  activity,
+  onUnit,
   onInspect,
+  onInspectBucket,
+  onOpenBucket,
   onToggleSource,
-  onToggleImportance,
   onToggleTopic,
   onToggleMonth,
 }: {
   totals: Stats;
   months: Stats;
   sources: Stats;
-  importance: Stats;
   topics: Stats;
   selection: StatsSelection;
   updatedAt: Date | null;
+  unit: ActivityUnit;
+  activityLimit: DateRange;
+  activity: {
+    buckets: ActivityBucket[] | null;
+    loading: boolean;
+    error: string | null;
+    retry: () => void;
+    sourceLabel: string | null;
+  };
+  onUnit: (unit: ActivityUnit) => void;
   onInspect: (text: string) => void;
+  onInspectBucket: (bucket: ActivityBucket) => void;
+  onOpenBucket: (bucket: ActivityBucket) => void;
   onToggleSource: (source: Source) => void;
-  onToggleImportance: (importance: Importance) => void;
   onToggleTopic: (topic: string) => void;
   onToggleMonth: (month: string) => void;
 }) {
@@ -383,6 +465,24 @@ function StatsBody({
         <Tile label="X bookmarks" value={formatCount(totals.x)} testID="stats-x" />
         <Tile label="Grok chats" value={formatCount(totals.grok)} testID="stats-grok" />
       </View>
+      <Panel
+        eyebrow="Over time"
+        title="Activity"
+        note="Bookmarks use the post date. Chats use the chat date. Days with nothing saved are left off."
+      >
+        <ActivityChart
+          buckets={activity.buckets}
+          unit={unit}
+          limit={activityLimit}
+          loading={activity.loading}
+          error={activity.error}
+          sourceLabel={activity.sourceLabel}
+          onUnit={onUnit}
+          onRetry={activity.retry}
+          onInspect={onInspectBucket}
+          onOpen={onOpenBucket}
+        />
+      </Panel>
       <Panel
         eyebrow="By month"
         title="Entries"
@@ -404,14 +504,6 @@ function StatsBody({
           stats={sources}
           selected={selection.source}
           onToggle={onToggleSource}
-          onInspect={onInspect}
-        />
-      </Panel>
-      <Panel eyebrow="Importance" title="How they were marked" note="Each entry has one level.">
-        <ImportanceDonut
-          stats={importance}
-          selected={selection.importance}
-          onToggle={onToggleImportance}
           onInspect={onInspect}
         />
       </Panel>

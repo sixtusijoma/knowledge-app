@@ -12,7 +12,12 @@ export const TOPICS = [
   'Humor/Culture',
   'Streamers/Drama',
   'News',
+  'Sports',
   'Other',
 ] as const;
 
 export type Topic = (typeof TOPICS)[number];
+
+export function isSports(topic: string): boolean {
+  return topic === 'Sports';
+}

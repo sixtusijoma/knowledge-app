@@ -1,4 +1,4 @@
-import type { Importance, Item, Source } from '@/lib/types';
+import type { Item, Source } from '@/lib/types';
 
 export function formatCount(value: number): string {
   return new Intl.NumberFormat('en-US').format(value);
@@ -50,13 +50,6 @@ export function openLabel(source: Source): string {
     return 'Open on X';
   }
   return 'Open in Grok';
-}
-
-export function importanceLabel(importance: Importance | null): string {
-  if (!importance) {
-    return 'Unset';
-  }
-  return importance;
 }
 
 export function sourcePlural(source: Source): string {

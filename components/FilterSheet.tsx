@@ -14,12 +14,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/Buttons';
+import { SportsIcon } from '@/components/Icons';
 import { availableYears, isMonthSelectable, MONTH_SHORT, monthKey } from '@/lib/dates';
 import { activeFilterCount, customRange, EMPTY_FILTERS, rangeHint } from '@/lib/filters';
 import { formatEntries } from '@/lib/format';
 import { useTheme, useType } from '@/lib/theme';
-import { TOPICS } from '@/lib/topics';
-import type { ImportanceFilter, ItemFilters, SourceFilter } from '@/lib/types';
+import { isSports, TOPICS } from '@/lib/topics';
+import type { ItemFilters, SourceFilter } from '@/lib/types';
+import { usePresentTopics } from '@/lib/use-topics';
 
 type Props = {
   visible: boolean;
@@ -36,13 +38,6 @@ const SOURCES: { value: SourceFilter; label: string; testID: string }[] = [
   { value: 'Grok Chat', label: 'Grok Chats', testID: 'filter-source-grok' },
 ];
 
-const LEVELS: { value: ImportanceFilter; label: string; testID: string }[] = [
-  { value: 'all', label: 'All', testID: 'filter-importance-all' },
-  { value: 'High', label: 'High', testID: 'filter-importance-high' },
-  { value: 'Medium', label: 'Medium', testID: 'filter-importance-medium' },
-  { value: 'Low', label: 'Low', testID: 'filter-importance-low' },
-];
-
 export function FilterSheet({ visible, filters, total, loading, onChange, onClose }: Props) {
   const { palette } = useTheme();
   const type = useType();
@@ -52,6 +47,13 @@ export function FilterSheet({ visible, filters, total, loading, onChange, onClos
   const [year, setYear] = useState(() => (filters.month ? Number(filters.month.slice(0, 4)) : now.getFullYear()));
   const hint = rangeHint(filters.from, filters.to);
   const dirty = activeFilterCount(filters) > 0 || filters.from !== null || filters.to !== null;
+  const present = usePresentTopics();
+  const listedTopics = TOPICS.filter((topic) => {
+    if (filters.topics.includes(topic)) {
+      return true;
+    }
+    return present.ready && present.topics.includes(topic);
+  });
 
   function updateDate(field: 'from' | 'to', value: string) {
     const next: ItemFilters = { ...filters, [field]: value.length === 0 ? null : value };
@@ -131,31 +133,27 @@ export function FilterSheet({ visible, filters, total, loading, onChange, onClos
               </View>
             </Section>
 
-            <Section title="Importance">
-              <View style={styles.wrap}>
-                {LEVELS.map((option) => (
-                  <Pill
-                    key={option.value}
-                    testID={option.testID}
-                    label={option.label}
-                    selected={filters.importance === option.value}
-                    onPress={() => {
-                      onChange({ ...filters, importance: option.value });
-                    }}
-                  />
-                ))}
-              </View>
-            </Section>
-
-            <Section title="Topics" hint="Match any selected topic.">
-              <View style={styles.wrap}>
-                {TOPICS.map((topic) => {
+            <Section title="Topics" hint="Match any selected topic. Topics with nothing saved are hidden.">
+              {present.ready ? null : (
+                <Text testID="filter-topics-loading" style={[styles.hint, { color: palette.textMuted, fontFamily: type.sans }]}>
+                  Checking which topics have entries…
+                </Text>
+              )}
+              <View testID="filter-topics" style={styles.wrap}>
+                {listedTopics.map((topic) => {
                   const selected = filters.topics.includes(topic);
+                  const sports = isSports(topic);
                   return (
                     <Pill
                       key={topic}
                       testID={`filter-topic-${topic}`}
                       label={topic}
+                      tone={sports ? 'sports' : 'accent'}
+                      icon={
+                        sports ? (
+                          <SportsIcon color={selected ? palette.accentText : palette.sports} size={14} />
+                        ) : undefined
+                      }
                       selected={selected}
                       onPress={() => {
                         const topics = selected
@@ -262,17 +260,33 @@ type PillProps = {
   testID: string;
   disabled?: boolean;
   variant?: 'choice' | 'tab';
+  tone?: 'accent' | 'sports';
+  icon?: ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
-function Pill({ label, selected, onPress, testID, disabled = false, variant = 'choice', style }: PillProps) {
+function Pill({
+  label,
+  selected,
+  onPress,
+  testID,
+  disabled = false,
+  variant = 'choice',
+  tone = 'accent',
+  icon,
+  style,
+}: PillProps) {
   const { palette } = useTheme();
   const type = useType();
   let colors = { background: palette.chip, border: palette.border, text: palette.chipText };
-  if (selected && variant === 'choice') {
+  if (selected && variant === 'choice' && tone === 'sports') {
+    colors = { background: palette.sports, border: palette.sports, text: palette.accentText };
+  } else if (selected && variant === 'choice') {
     colors = { background: palette.accent, border: palette.accent, text: palette.accentText };
   } else if (selected) {
     colors = { background: palette.text, border: palette.text, text: palette.bg };
+  } else if (tone === 'sports') {
+    colors = { background: palette.sportsBg, border: palette.border, text: palette.sports };
   } else if (variant === 'tab') {
     colors = { background: 'transparent', border: palette.border, text: palette.text };
   }
@@ -289,6 +303,7 @@ function Pill({ label, selected, onPress, testID, disabled = false, variant = 'c
         { backgroundColor: colors.background, borderColor: colors.border, opacity: disabled ? 0.35 : 1 },
       ]}
     >
+      {icon}
       <Text style={[styles.pillText, { color: colors.text, fontFamily: type.sansMedium }]}>{label}</Text>
     </Pressable>
   );
@@ -409,11 +424,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    alignItems: 'center',
     justifyContent: 'center',
   },
   pillText: {

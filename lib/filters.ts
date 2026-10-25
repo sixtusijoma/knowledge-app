@@ -9,7 +9,6 @@ export type DateRange = {
 export const EMPTY_FILTERS: ItemFilters = {
   source: 'all',
   topics: [],
-  importance: 'all',
   month: null,
   from: null,
   to: null,
@@ -74,9 +73,6 @@ export function rangeLabel(range: DateRange): string {
 export function activeFilterCount(filters: ItemFilters): number {
   let count = filters.topics.length;
   if (filters.source !== 'all') {
-    count += 1;
-  }
-  if (filters.importance !== 'all') {
     count += 1;
   }
   if (customRange(filters)) {

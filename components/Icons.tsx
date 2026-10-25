@@ -83,6 +83,20 @@ export function FeedIcon({ color, size = 22 }: IconProps) {
   );
 }
 
+export function SportsIcon({ color, size = 14 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx="12" cy="12" r="8" stroke={color} strokeWidth={1.75} />
+      <Path
+        d="M12 4.2c1.8 2.3 1.8 13.3 0 15.6M12 4.2c-1.8 2.3-1.8 13.3 0 15.6M4.6 9.2h14.8M4.6 14.8h14.8"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
 export function StatsIcon({ color, size = 22 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">

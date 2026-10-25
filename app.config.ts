@@ -28,7 +28,7 @@ const config: ExpoConfig = {
   android: {
     package: 'com.sixtus.knowledge',
     adaptiveIcon: {
-      backgroundColor: '#100E0C',
+      backgroundColor: '#0C1220',
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
@@ -47,7 +47,7 @@ const config: ExpoConfig = {
       {
         image: './assets/images/splash-icon.png',
         resizeMode: 'contain',
-        backgroundColor: '#100E0C',
+        backgroundColor: '#0C1220',
       },
     ],
     'expo-font',

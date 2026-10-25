@@ -1,10 +1,6 @@
 export type Source = 'X Bookmark' | 'Grok Chat';
 
-export type Importance = 'High' | 'Medium' | 'Low';
-
 export type SourceFilter = 'all' | Source;
-
-export type ImportanceFilter = 'all' | Importance;
 
 export type Item = {
   id: string;
@@ -13,7 +9,6 @@ export type Item = {
   title: string;
   summary: string | null;
   topics: string[];
-  importance: Importance | null;
   author: string | null;
   item_date: string | null;
   link: string | null;
@@ -23,7 +18,6 @@ export type Item = {
 export type ItemFilters = {
   source: SourceFilter;
   topics: string[];
-  importance: ImportanceFilter;
   month: string | null;
   from: string | null;
   to: string | null;
@@ -32,6 +26,5 @@ export type ItemFilters = {
 export type StatRow = {
   source: Source;
   topics: string[];
-  importance: Importance | null;
   item_date: string | null;
 };

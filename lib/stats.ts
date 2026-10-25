@@ -1,6 +1,6 @@
 import { addDays, formatMonthKey, isoDate, monthKeyFromDate, nextMonth, shortMonth, shortYear } from '@/lib/dates';
 import { customRange, EMPTY_FILTERS, rangeHint, type DateRange } from '@/lib/filters';
-import type { Importance, ItemFilters, Source, StatRow } from '@/lib/types';
+import type { ItemFilters, Source, StatRow } from '@/lib/types';
 
 export type MonthBucket = {
   month: string;
@@ -21,12 +21,6 @@ export type Stats = {
   x: number;
   grok: number;
   undated: number;
-  importance: {
-    high: number;
-    medium: number;
-    low: number;
-    unset: number;
-  };
   topics: TopicBucket[];
   months: MonthBucket[];
   thisMonth: number;
@@ -41,7 +35,6 @@ function emptyBucket(): { x: number; grok: number } {
 }
 
 export function buildStats(rows: StatRow[], now: Date): Stats {
-  const importance = { high: 0, medium: 0, low: 0, unset: 0 };
   let x = 0;
   let grok = 0;
   let undated = 0;
@@ -53,15 +46,6 @@ export function buildStats(rows: StatRow[], now: Date): Stats {
       x += 1;
     } else if (row.source === 'Grok Chat') {
       grok += 1;
-    }
-    if (row.importance === 'High') {
-      importance.high += 1;
-    } else if (row.importance === 'Medium') {
-      importance.medium += 1;
-    } else if (row.importance === 'Low') {
-      importance.low += 1;
-    } else {
-      importance.unset += 1;
     }
     for (const topic of row.topics) {
       topicCounts.set(topic, (topicCounts.get(topic) ?? 0) + 1);
@@ -98,7 +82,6 @@ export function buildStats(rows: StatRow[], now: Date): Stats {
     x,
     grok,
     undated,
-    importance,
     topics,
     months,
     thisMonth,
@@ -161,18 +144,16 @@ function peakMonth(months: MonthBucket[]): { label: string; count: number } | nu
   return { label: formatMonthKey(best.month), count: bestCount };
 }
 
-export type StatsDimension = 'source' | 'importance' | 'topic' | 'month';
+export type StatsDimension = 'source' | 'topic' | 'month';
 
 export type StatsSelection = {
   source: Source | null;
-  importance: Importance | null;
   topic: string | null;
   month: string | null;
 };
 
 export const EMPTY_SELECTION: StatsSelection = {
   source: null,
-  importance: null,
   topic: null,
   month: null,
 };
@@ -181,9 +162,6 @@ export type RangePreset = 'all' | '7' | '30' | '90' | 'year' | 'custom';
 
 export function chartSelectionActive(selection: StatsSelection): boolean {
   if (selection.source) {
-    return true;
-  }
-  if (selection.importance) {
     return true;
   }
   if (selection.topic) {
@@ -245,7 +223,6 @@ export function filtersFromStats(selection: StatsSelection, range: DateRange): I
   return {
     source: selection.source ?? 'all',
     topics: selection.topic ? [selection.topic] : [],
-    importance: selection.importance ?? 'all',
     month: selection.month,
     from: range.from,
     to: range.to,
@@ -279,9 +256,6 @@ export function rowMatches(
     return false;
   }
   if (ignore !== 'source' && selection.source && row.source !== selection.source) {
-    return false;
-  }
-  if (ignore !== 'importance' && selection.importance && row.importance !== selection.importance) {
     return false;
   }
   if (ignore !== 'topic' && selection.topic && !row.topics.includes(selection.topic)) {

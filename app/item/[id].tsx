@@ -7,10 +7,11 @@ import { PrimaryButton } from '@/components/Buttons';
 import { ArrowUpRightIcon, ChevronLeftIcon } from '@/components/Icons';
 import { SourceBadge } from '@/components/SourceBadge';
 import { DetailSkeleton, EmptyState, ErrorState } from '@/components/StateViews';
+import { TopicChip } from '@/components/TopicChip';
 import { formatItemDate, formatTimestamp } from '@/lib/dates';
-import { externalIdLabel, importanceLabel, meaningfulSummary, messageOf, openLabel } from '@/lib/format';
+import { externalIdLabel, meaningfulSummary, messageOf, openLabel } from '@/lib/format';
 import { fetchItem, peekItem } from '@/lib/queries';
-import { importanceColor, useTheme, useType } from '@/lib/theme';
+import { useTheme, useType } from '@/lib/theme';
 import type { Item } from '@/lib/types';
 
 function openLink(url: string) {
@@ -163,12 +164,6 @@ function EntryBody({ item }: { item: Item }) {
     <View>
       <View style={styles.meta}>
         <SourceBadge source={item.source} testID="detail-source" />
-        <Text
-          testID="detail-importance"
-          style={[styles.importance, { color: importanceColor(palette, item.importance), fontFamily: type.sansMedium }]}
-        >
-          {`${importanceLabel(item.importance)} importance`}
-        </Text>
       </View>
       <Text testID="detail-date" style={[styles.date, { color: palette.textMuted, fontFamily: type.sans }]}>
         {formatItemDate(item.item_date)}
@@ -195,9 +190,7 @@ function EntryBody({ item }: { item: Item }) {
       {item.topics.length > 0 ? (
         <View testID="detail-topics" style={styles.topics}>
           {item.topics.map((topic) => (
-            <View key={topic} style={[styles.topic, { backgroundColor: palette.chip }]}>
-              <Text style={[styles.topicText, { color: palette.chipText, fontFamily: type.sansMedium }]}>{topic}</Text>
-            </View>
+            <TopicChip key={topic} topic={topic} testID={`detail-topic-${topic}`} />
           ))}
         </View>
       ) : (
@@ -258,9 +251,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  importance: {
-    fontSize: 13,
-  },
   date: {
     marginTop: 12,
     fontSize: 13,
@@ -285,14 +275,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-  },
-  topic: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  topicText: {
-    fontSize: 13,
   },
   fields: {
     marginTop: 24,

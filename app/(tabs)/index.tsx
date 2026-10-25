@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -38,6 +39,14 @@ export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const { filters, setFilters, search, setSearch } = useFeedFilters();
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setSheetOpen(false);
+      };
+    }, []),
+  );
   const debouncedSearch = useDebouncedValue(search, 300);
   const listRef = useRef<FlatList<Item>>(null);
   const { items, total, loading, loadingMore, refreshing, error, reload, refresh, loadMore, retryMore } = useItems(
@@ -76,7 +85,7 @@ export default function FeedScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: palette.bg }]}>
+    <View testID="feed-screen" style={[styles.screen, { backgroundColor: palette.bg }]}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.titleRow}>
           <View style={styles.wordmark}>
@@ -241,16 +250,6 @@ function buildChips(filters: ItemFilters, setFilters: (filters: ItemFilters) => 
       label: sourcePlural(filters.source),
       remove: () => {
         setFilters({ ...filters, source: 'all' });
-      },
-    });
-  }
-  if (filters.importance !== 'all') {
-    chips.push({
-      key: 'importance',
-      testID: 'chip-importance',
-      label: filters.importance,
-      remove: () => {
-        setFilters({ ...filters, importance: 'all' });
       },
     });
   }

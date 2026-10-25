@@ -1,11 +1,13 @@
+import type { ActivityBucket, ActivityUnit } from '@/lib/activity';
 import { resolveDateRange } from '@/lib/filters';
 import { supabase } from '@/lib/supabase';
-import type { Item, ItemFilters, StatRow } from '@/lib/types';
+import { TOPICS } from '@/lib/topics';
+import type { Item, ItemFilters, Source, StatRow } from '@/lib/types';
 
 export const PAGE_SIZE = 20;
 
 const ITEM_COLUMNS =
-  'id, source, external_id, title, summary, topics, importance, author, item_date, link, created_at';
+  'id, source, external_id, title, summary, topics, author, item_date, link, created_at';
 
 const STAT_PAGE = 1000;
 const MAX_STAT_PAGES = 40;
@@ -20,7 +22,6 @@ function normalizeItem(row: Item): Item {
     summary: row.summary ?? null,
     author: row.author ?? null,
     link: row.link ?? null,
-    importance: row.importance ?? null,
     item_date: row.item_date ?? null,
   };
   seenItems.set(item.id, item);
@@ -43,9 +44,6 @@ export async function fetchItems(args: {
   }
   if (args.filters.source !== 'all') {
     query = query.eq('source', args.filters.source);
-  }
-  if (args.filters.importance !== 'all') {
-    query = query.eq('importance', args.filters.importance);
   }
   if (args.filters.topics.length > 0) {
     // overlaps = match any selected topic
@@ -93,7 +91,7 @@ export async function fetchStatRows(): Promise<StatRow[]> {
     const from = page * STAT_PAGE;
     const { data, error } = await supabase
       .from('items')
-      .select('source, topics, importance, item_date')
+      .select('source, topics, item_date')
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .range(from, from + STAT_PAGE - 1);
@@ -103,7 +101,6 @@ export async function fetchStatRows(): Promise<StatRow[]> {
     const batch = ((data ?? []) as StatRow[]).map((row) => ({
       source: row.source,
       topics: Array.isArray(row.topics) ? row.topics : [],
-      importance: row.importance ?? null,
       item_date: row.item_date ?? null,
     }));
     rows.push(...batch);
@@ -112,4 +109,76 @@ export async function fetchStatRows(): Promise<StatRow[]> {
     }
   }
   throw new Error('The library is larger than this stats pass can read.');
+}
+
+type ActivityRow = {
+  bucket: string;
+  bookmarks: number | string;
+  chats: number | string;
+};
+
+export async function fetchActivity(args: {
+  unit: ActivityUnit;
+  from: string | null;
+  to: string | null;
+  source: Source | null;
+  topic: string | null;
+}): Promise<ActivityBucket[]> {
+  const { data, error } = await supabase.rpc('activity_buckets', {
+    p_unit: args.unit,
+    p_from: args.from,
+    p_to: args.to,
+    p_source: args.source,
+    p_topic: args.topic,
+  });
+  if (error) {
+    if (/schema cache|could not find the function/i.test(error.message)) {
+      throw new Error('Activity counts are not available until activity_buckets is on the database.');
+    }
+    throw new Error(error.message);
+  }
+  return ((data ?? []) as ActivityRow[]).map((row) => ({
+    bucket: String(row.bucket).slice(0, 10),
+    bookmarks: Number(row.bookmarks),
+    chats: Number(row.chats),
+  }));
+}
+
+let topicCache: string[] | null = null;
+let topicRequest: Promise<string[]> | null = null;
+
+export function clearTopicCache(): void {
+  topicCache = null;
+  topicRequest = null;
+}
+
+// One exact count per known topic, so a topic with no rows never gets a chip.
+export function fetchPresentTopics(): Promise<string[]> {
+  if (topicCache) {
+    return Promise.resolve(topicCache);
+  }
+  if (topicRequest) {
+    return topicRequest;
+  }
+  topicRequest = (async () => {
+    const counts = await Promise.all(
+      TOPICS.map(async (topic) => {
+        const { count, error } = await supabase
+          .from('items')
+          .select('id', { count: 'exact', head: true })
+          .overlaps('topics', [topic]);
+        if (error) {
+          throw new Error(error.message);
+        }
+        return { topic, count: count ?? 0 };
+      }),
+    );
+    const present = counts.filter((row) => row.count > 0).map((row) => row.topic);
+    topicCache = present;
+    return present;
+  })().catch((error: unknown) => {
+    topicRequest = null;
+    throw error;
+  });
+  return topicRequest;
 }

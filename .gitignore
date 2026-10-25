@@ -43,3 +43,6 @@ uploads/
 # generated native folders
 /ios
 /android
+
+# supabase cli scratch
+supabase/.temp/

@@ -1,65 +1,59 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
-import type { Importance } from '@/lib/types';
-
 const STORAGE_KEY = 'knowledge.theme';
 
 export const darkPalette = {
-  canvas: '#070605',
-  bg: '#100E0C',
-  card: '#1C1916',
-  cardPressed: '#26221D',
-  border: '#322E28',
-  text: '#F6F1E8',
-  textSecondary: '#C9BFB2',
-  textMuted: '#A3988C',
-  accent: '#E09A4B',
-  accentText: '#1A1208',
-  xBg: '#1A2836',
-  xFg: '#A9CFFF',
-  grokBg: '#2C2418',
-  grokFg: '#F0C98A',
-  xBar: '#7EAAE0',
-  grokBar: '#E09A4B',
-  high: '#F07167',
-  medium: '#E09A4B',
-  low: '#9BB992',
-  unset: '#8A8178',
-  chip: '#26221C',
-  chipText: '#E7DFD3',
-  input: '#181512',
-  overlay: 'rgba(0, 0, 0, 0.62)',
-  skeleton: '#2A261F',
+  canvas: '#070B12',
+  bg: '#0C1220',
+  card: '#141C2F',
+  cardPressed: '#1C2742',
+  border: '#2A3854',
+  text: '#E7EEF8',
+  textSecondary: '#C3D0E2',
+  textMuted: '#8EA0B8',
+  accent: '#2DD4BF',
+  accentText: '#042F2E',
+  xBg: '#17263C',
+  xFg: '#C5D9F2',
+  grokBg: '#12332F',
+  grokFg: '#99F6E4',
+  xBar: '#7BA4D4',
+  grokBar: '#2DD4BF',
+  sports: '#86EFAC',
+  sportsBg: '#143024',
+  chip: '#1A2640',
+  chipText: '#E4ECF7',
+  input: '#10192C',
+  overlay: 'rgba(5, 10, 20, 0.68)',
+  skeleton: '#1E2A42',
   danger: '#F07167',
 };
 
 export const lightPalette: Palette = {
-  canvas: '#E4DCD0',
-  bg: '#F4EFE7',
-  card: '#FFFCF7',
-  cardPressed: '#F3EBE2',
-  border: '#E3D9CC',
-  text: '#1C1814',
-  textSecondary: '#514A42',
-  textMuted: '#6F675C',
-  accent: '#A85B22',
-  accentText: '#FFFCF7',
-  xBg: '#E5F0FA',
-  xFg: '#18497A',
-  grokBg: '#F8EEDD',
-  grokFg: '#7A4E12',
+  canvas: '#E6EDF5',
+  bg: '#F5F8FB',
+  card: '#FFFFFF',
+  cardPressed: '#E7EEF6',
+  border: '#D5E0EC',
+  text: '#0F172A',
+  textSecondary: '#334155',
+  textMuted: '#64748B',
+  accent: '#0F766E',
+  accentText: '#F0FDFA',
+  xBg: '#E7F0FA',
+  xFg: '#1E3A5F',
+  grokBg: '#E6F7F4',
+  grokFg: '#115E59',
   xBar: '#3D6FA3',
-  grokBar: '#C47A32',
-  high: '#C2412D',
-  medium: '#A85B22',
-  low: '#3E6B46',
-  unset: '#8A8178',
-  chip: '#EBE3D8',
-  chipText: '#3A342C',
-  input: '#FFFCF7',
-  overlay: 'rgba(28, 24, 20, 0.45)',
-  skeleton: '#E6DDD1',
+  grokBar: '#0F766E',
+  sports: '#15803D',
+  sportsBg: '#DCFCE7',
+  chip: '#E8EEF5',
+  chipText: '#1E293B',
+  input: '#FFFFFF',
+  overlay: 'rgba(15, 23, 42, 0.42)',
+  skeleton: '#E2E8F0',
   danger: '#C2412D',
 };
 
@@ -156,15 +150,3 @@ export function useType(): Typeface {
   return fontFamily;
 }
 
-export function importanceColor(palette: Palette, importance: Importance | null): string {
-  if (importance === 'High') {
-    return palette.high;
-  }
-  if (importance === 'Medium') {
-    return palette.medium;
-  }
-  if (importance === 'Low') {
-    return palette.low;
-  }
-  return palette.unset;
-}
