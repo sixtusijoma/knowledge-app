@@ -10,11 +10,17 @@ const supabaseAnonKey =
 const config: ExpoConfig = {
   name: 'Knowledge',
   slug: 'knowledge',
+  owner: 'setwise-sixtus',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'knowledge',
   userInterfaceStyle: 'dark',
+  // `exposdk:<sdk>`, the runtime Expo Go reports, so published updates open in Expo Go.
+  runtimeVersion: { policy: 'sdkVersion' },
+  updates: {
+    url: 'https://u.expo.dev/58df4489-fd92-4ae6-8644-2b9f3daa4c05',
+  },
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.sixtus.knowledge',
@@ -52,6 +58,7 @@ const config: ExpoConfig = {
   extra: {
     supabaseUrl,
     supabaseAnonKey,
+    eas: { projectId: '58df4489-fd92-4ae6-8644-2b9f3daa4c05' },
   },
 };
 

@@ -24,6 +24,16 @@ The app reads `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Se
 
 When they are not set, the app uses the public Knowledge project from `app.config.ts`. That anon key is meant for clients: row level security allows select only, and writes are revoked.
 
+## Publish
+
+The app is published with EAS Update to `@setwise-sixtus/knowledge`, channel `production`, so it opens in Expo Go without a dev server. The runtime version follows the SDK (`exposdk:58.0.0`), which is what Expo Go reports.
+
+```bash
+npx eas-cli update --channel production --platform all --message "What changed"
+```
+
+Open it in Expo Go from `exp://u.expo.dev/58df4489-fd92-4ae6-8644-2b9f3daa4c05?runtime-version=exposdk%3A58.0.0&channel-name=production`. After an Expo SDK upgrade, publish again and update the `runtime-version` in that URL.
+
 ## Checks
 
 ```bash
