@@ -3,10 +3,10 @@ import { useCallback, useRef, useState } from 'react';
 
 import { messageOf } from '@/lib/format';
 import { fetchStatRows } from '@/lib/queries';
-import { buildStats, type Stats } from '@/lib/stats';
+import type { StatRow } from '@/lib/types';
 
 export function useStats() {
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [rows, setRows] = useState<StatRow[] | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -23,13 +23,12 @@ export function useStats() {
       setLoading(true);
     }
     try {
-      const rows = await fetchStatRows();
+      const next = await fetchStatRows();
       if (id !== requestId.current) {
         return;
       }
-      const now = new Date();
-      setStats(buildStats(rows, now));
-      setUpdatedAt(now);
+      setRows(next);
+      setUpdatedAt(new Date());
       setError(null);
     } catch (err) {
       if (id !== requestId.current) {
@@ -51,7 +50,7 @@ export function useStats() {
   );
 
   return {
-    stats,
+    rows,
     updatedAt,
     loading,
     refreshing,

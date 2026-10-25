@@ -17,6 +17,7 @@ import { ItemCard } from '@/components/ItemCard';
 import { SearchField } from '@/components/SearchField';
 import { Banner, EmptyState, ErrorState, FeedSkeleton } from '@/components/StateViews';
 import { formatMonthKey } from '@/lib/dates';
+import { useFeedFilters } from '@/lib/feed-filters';
 import { activeFilterCount, customRange, EMPTY_FILTERS, rangeLabel } from '@/lib/filters';
 import { formatCount, formatEntries, sourcePlural } from '@/lib/format';
 import { useTheme, useType } from '@/lib/theme';
@@ -35,8 +36,7 @@ export default function FeedScreen() {
   const { palette, name, toggleTheme } = useTheme();
   const type = useType();
   const insets = useSafeAreaInsets();
-  const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState<ItemFilters>(EMPTY_FILTERS);
+  const { filters, setFilters, search, setSearch } = useFeedFilters();
   const [sheetOpen, setSheetOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search, 300);
   const listRef = useRef<FlatList<Item>>(null);
@@ -274,7 +274,8 @@ function buildChips(filters: ItemFilters, setFilters: (filters: ItemFilters) => 
         setFilters({ ...filters, from: null, to: null });
       },
     });
-  } else if (filters.month) {
+  }
+  if (filters.month) {
     chips.push({
       key: 'month',
       testID: 'chip-month',

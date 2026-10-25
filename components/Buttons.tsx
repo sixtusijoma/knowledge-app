@@ -9,9 +9,10 @@ type PrimaryProps = {
   disabled?: boolean;
   testID?: string;
   icon?: ReactNode;
+  accessibilityLabel?: string;
 };
 
-export function PrimaryButton({ label, onPress, disabled, testID, icon }: PrimaryProps) {
+export function PrimaryButton({ label, onPress, disabled, testID, icon, accessibilityLabel }: PrimaryProps) {
   const { palette } = useTheme();
   const type = useType();
   return (
@@ -20,6 +21,7 @@ export function PrimaryButton({ label, onPress, disabled, testID, icon }: Primar
       disabled={disabled}
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: Boolean(disabled) }}
       style={({ pressed }) => [
         styles.primary,

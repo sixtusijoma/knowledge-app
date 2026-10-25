@@ -39,16 +39,24 @@ export function customRange(filters: ItemFilters): DateRange | null {
   return { from, to };
 }
 
+// Stats can hand the feed a month and a range together. Use their overlap.
+// The filter sheet still clears one when the other is edited.
 export function resolveDateRange(filters: ItemFilters): DateRange {
   const custom = customRange(filters);
+  const bounds = filters.month ? monthBounds(filters.month) : null;
+  if (custom && bounds) {
+    const from = custom.from && custom.from > bounds.from ? custom.from : bounds.from;
+    const to = custom.to && custom.to < bounds.to ? custom.to : bounds.to;
+    if (from > to) {
+      return { from: '9999-01-01', to: '9999-01-01' };
+    }
+    return { from, to };
+  }
   if (custom) {
     return custom;
   }
-  if (filters.month) {
-    const bounds = monthBounds(filters.month);
-    if (bounds) {
-      return bounds;
-    }
+  if (bounds) {
+    return bounds;
   }
   return { from: null, to: null };
 }
@@ -71,7 +79,10 @@ export function activeFilterCount(filters: ItemFilters): number {
   if (filters.importance !== 'all') {
     count += 1;
   }
-  if (customRange(filters) || filters.month) {
+  if (customRange(filters)) {
+    count += 1;
+  }
+  if (filters.month) {
     count += 1;
   }
   return count;

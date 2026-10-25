@@ -18,6 +18,17 @@ export function formatPercent(part: number, total: number): string {
   return `${Math.round((part / total) * 100)}%`;
 }
 
+export function formatShare(part: number, total: number): string {
+  if (total <= 0) {
+    return '0.0%';
+  }
+  return `${((part / total) * 100).toFixed(1)}%`;
+}
+
+export function segmentSummary(label: string, count: number, total: number): string {
+  return `${label} · ${formatEntries(count)} · ${formatShare(count, total)}`;
+}
+
 export function messageOf(error: unknown): string {
   const raw = error instanceof Error ? error.message : '';
   const lowered = raw.toLowerCase();

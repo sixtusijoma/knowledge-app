@@ -1,5 +1,6 @@
-import { formatMonthKey, monthKeyFromDate, nextMonth, shortMonth, shortYear } from '@/lib/dates';
-import type { StatRow } from '@/lib/types';
+import { addDays, formatMonthKey, isoDate, monthKeyFromDate, nextMonth, shortMonth, shortYear } from '@/lib/dates';
+import { customRange, EMPTY_FILTERS, rangeHint, type DateRange } from '@/lib/filters';
+import type { Importance, ItemFilters, Source, StatRow } from '@/lib/types';
 
 export type MonthBucket = {
   month: string;
@@ -158,4 +159,167 @@ function peakMonth(months: MonthBucket[]): { label: string; count: number } | nu
     return null;
   }
   return { label: formatMonthKey(best.month), count: bestCount };
+}
+
+export type StatsDimension = 'source' | 'importance' | 'topic' | 'month';
+
+export type StatsSelection = {
+  source: Source | null;
+  importance: Importance | null;
+  topic: string | null;
+  month: string | null;
+};
+
+export const EMPTY_SELECTION: StatsSelection = {
+  source: null,
+  importance: null,
+  topic: null,
+  month: null,
+};
+
+export type RangePreset = 'all' | '7' | '30' | '90' | 'year' | 'custom';
+
+export function chartSelectionActive(selection: StatsSelection): boolean {
+  if (selection.source) {
+    return true;
+  }
+  if (selection.importance) {
+    return true;
+  }
+  if (selection.topic) {
+    return true;
+  }
+  if (selection.month) {
+    return true;
+  }
+  return false;
+}
+
+export function toggleSelection<K extends keyof StatsSelection>(
+  selection: StatsSelection,
+  key: K,
+  value: NonNullable<StatsSelection[K]>,
+): StatsSelection {
+  if (selection[key] === value) {
+    return { ...selection, [key]: null };
+  }
+  return { ...selection, [key]: value };
+}
+
+// Last 7/30/90 days include today. This year runs from January 1 through today.
+export function presetRange(preset: RangePreset, now: Date): DateRange {
+  if (preset === 'all' || preset === 'custom') {
+    return { from: null, to: null };
+  }
+  const to = isoDate(now);
+  if (preset === 'year') {
+    return { from: `${now.getFullYear()}-01-01`, to };
+  }
+  let days = 89;
+  if (preset === '7') {
+    days = 6;
+  } else if (preset === '30') {
+    days = 29;
+  }
+  return { from: isoDate(addDays(now, -days)), to };
+}
+
+export function appliedStatsRange(
+  preset: RangePreset,
+  now: Date,
+  from: string | null,
+  to: string | null,
+): { range: DateRange; hint: string | null } {
+  if (preset !== 'custom') {
+    return { range: presetRange(preset, now), hint: null };
+  }
+  const hint = rangeHint(from, to);
+  if (hint) {
+    return { range: { from: null, to: null }, hint };
+  }
+  const custom = customRange({ ...EMPTY_FILTERS, from, to });
+  return { range: custom ?? { from: null, to: null }, hint: null };
+}
+
+export function filtersFromStats(selection: StatsSelection, range: DateRange): ItemFilters {
+  return {
+    source: selection.source ?? 'all',
+    topics: selection.topic ? [selection.topic] : [],
+    importance: selection.importance ?? 'all',
+    month: selection.month,
+    from: range.from,
+    to: range.to,
+  };
+}
+
+function inRange(row: StatRow, range: DateRange): boolean {
+  if (!range.from && !range.to) {
+    return true;
+  }
+  if (!row.item_date) {
+    return false;
+  }
+  if (range.from && row.item_date < range.from) {
+    return false;
+  }
+  if (range.to && row.item_date > range.to) {
+    return false;
+  }
+  return true;
+}
+
+// `ignore` keeps the chart you tapped unfiltered by its own dimension, so another segment stays tappable.
+export function rowMatches(
+  row: StatRow,
+  selection: StatsSelection,
+  range: DateRange,
+  ignore: StatsDimension | null,
+): boolean {
+  if (!inRange(row, range)) {
+    return false;
+  }
+  if (ignore !== 'source' && selection.source && row.source !== selection.source) {
+    return false;
+  }
+  if (ignore !== 'importance' && selection.importance && row.importance !== selection.importance) {
+    return false;
+  }
+  if (ignore !== 'topic' && selection.topic && !row.topics.includes(selection.topic)) {
+    return false;
+  }
+  if (ignore !== 'month' && selection.month && monthKeyFromDate(row.item_date) !== selection.month) {
+    return false;
+  }
+  return true;
+}
+
+export function filteredStats(
+  rows: StatRow[],
+  selection: StatsSelection,
+  range: DateRange,
+  ignore: StatsDimension | null,
+  now: Date,
+): Stats {
+  const matched: StatRow[] = [];
+  for (const row of rows) {
+    if (rowMatches(row, selection, range, ignore)) {
+      matched.push(row);
+    }
+  }
+  return buildStats(matched, now);
+}
+
+export function withSelectedTopic(stats: Stats, topic: string | null): Stats {
+  if (!topic) {
+    return stats;
+  }
+  for (const bucket of stats.topics) {
+    if (bucket.topic === topic) {
+      return stats;
+    }
+  }
+  const topics = [...stats.topics, { topic, count: 0 }].sort((left, right) => {
+    return right.count - left.count || left.topic.localeCompare(right.topic);
+  });
+  return { ...stats, topics };
 }
