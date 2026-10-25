@@ -41,6 +41,7 @@ export default function StatsScreen() {
       {error && stats ? (
         <Banner
           message={error}
+          busy={refreshing}
           onRetry={() => {
             refresh().catch(() => undefined);
           }}

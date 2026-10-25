@@ -10,7 +10,7 @@ type Props = {
 };
 
 export function SearchField({ value, onChange }: Props) {
-  const { palette } = useTheme();
+  const { palette, name } = useTheme();
   const type = useType();
   const [focused, setFocused] = useState(false);
 
@@ -34,6 +34,7 @@ export function SearchField({ value, onChange }: Props) {
         autoCapitalize="none"
         autoCorrect={false}
         returnKeyType="search"
+        keyboardAppearance={name}
         onFocus={() => {
           setFocused(true);
         }}

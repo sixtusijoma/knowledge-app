@@ -119,10 +119,11 @@ export function EmptyState({ title, message, actionLabel, onAction }: EmptyProps
 
 type BannerProps = {
   message: string;
+  busy: boolean;
   onRetry: () => void;
 };
 
-export function Banner({ message, onRetry }: BannerProps) {
+export function Banner({ message, busy, onRetry }: BannerProps) {
   const { palette } = useTheme();
   const type = useType();
   return (
@@ -131,10 +132,14 @@ export function Banner({ message, onRetry }: BannerProps) {
       <Text
         testID="banner-retry"
         accessibilityRole="button"
+        disabled={busy}
         onPress={onRetry}
-        style={[styles.bannerAction, { color: palette.accent, fontFamily: type.sansSemibold }]}
+        style={[
+          styles.bannerAction,
+          { color: busy ? palette.textMuted : palette.accent, fontFamily: type.sansSemibold },
+        ]}
       >
-        Try again
+        {busy ? 'Trying again…' : 'Try again'}
       </Text>
     </View>
   );

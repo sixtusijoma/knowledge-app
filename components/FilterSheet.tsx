@@ -305,7 +305,7 @@ function DateField({
   value: string | null;
   onChange: (value: string) => void;
 }) {
-  const { palette } = useTheme();
+  const { palette, name } = useTheme();
   const type = useType();
   return (
     <View style={styles.dateField}>
@@ -318,6 +318,7 @@ function DateField({
         placeholderTextColor={palette.textMuted}
         accessibilityLabel={`${label} date, YYYY-MM-DD`}
         keyboardType="numbers-and-punctuation"
+        keyboardAppearance={name}
         maxLength={10}
         autoCapitalize="none"
         autoCorrect={false}

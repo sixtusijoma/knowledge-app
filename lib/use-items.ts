@@ -41,6 +41,7 @@ export function useItems(filters: ItemFilters, search: string) {
     morePaused.current = false;
     if (mode === 'reload') {
       setLoading(true);
+      setError(null);
     } else {
       setRefreshing(true);
     }

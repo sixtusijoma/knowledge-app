@@ -136,6 +136,7 @@ export default function FeedScreen() {
         {firstPageError && items.length > 0 ? (
           <Banner
             message={firstPageError.message}
+            busy={refreshing}
             onRetry={() => {
               refresh().catch(() => undefined);
             }}
