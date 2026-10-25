@@ -3,46 +3,21 @@ import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 
-import { readSupabasePublicConfig, SUPABASE_ANON_KEY_DEFAULT, SUPABASE_URL_DEFAULT } from '@/lib/public-env';
-
-type ExtraConfig = {
+type Extra = {
   supabaseUrl?: string;
   supabaseAnonKey?: string;
 };
 
-function readExtra(): ExtraConfig {
-  const extra = Constants.expoConfig?.extra;
-  if (!extra || typeof extra !== 'object') {
-    return {};
-  }
-  return extra as ExtraConfig;
+// Env vars win; app.config.ts carries the public project values as the fallback.
+const extra = (Constants.expoConfig?.extra ?? {}) as Extra;
+const url = process.env.EXPO_PUBLIC_SUPABASE_URL || extra.supabaseUrl;
+const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || extra.supabaseAnonKey;
+
+if (!url || !anonKey) {
+  throw new Error('Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.');
 }
 
-export function resolveSupabaseConfig(): { url: string; anonKey: string } {
-  const fromEnv = readSupabasePublicConfig();
-  const extra = readExtra();
-  let url = SUPABASE_URL_DEFAULT;
-  if (process.env.EXPO_PUBLIC_SUPABASE_URL && process.env.EXPO_PUBLIC_SUPABASE_URL.length > 0) {
-    url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  } else if (extra.supabaseUrl && extra.supabaseUrl.length > 0) {
-    url = extra.supabaseUrl;
-  } else {
-    url = fromEnv.url;
-  }
-  let anonKey = SUPABASE_ANON_KEY_DEFAULT;
-  if (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY && process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY.length > 0) {
-    anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-  } else if (extra.supabaseAnonKey && extra.supabaseAnonKey.length > 0) {
-    anonKey = extra.supabaseAnonKey;
-  } else {
-    anonKey = fromEnv.anonKey;
-  }
-  return { url, anonKey };
-}
-
-const config = resolveSupabaseConfig();
-
-export const supabase = createClient(config.url, config.anonKey, {
+export const supabase = createClient(url, anonKey, {
   auth: {
     persistSession: false,
     autoRefreshToken: false,

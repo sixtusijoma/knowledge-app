@@ -99,16 +99,20 @@ export function ThemeProvider({
   children: ReactNode;
 }) {
   const [name, setName] = useState<ThemeName>('dark');
+  const [restored, setRestored] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const restore = async () => {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (cancelled) {
-        return;
-      }
-      if (stored === 'light' || stored === 'dark') {
-        setName(stored);
+      try {
+        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        if (!cancelled && (stored === 'light' || stored === 'dark')) {
+          setName(stored);
+        }
+      } finally {
+        if (!cancelled) {
+          setRestored(true);
+        }
       }
     };
     restore().catch(() => undefined);
@@ -118,14 +122,16 @@ export function ThemeProvider({
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setName((current) => {
-      const next = current === 'dark' ? 'light' : 'dark';
-      AsyncStorage.setItem(STORAGE_KEY, next).catch(() => undefined);
-      return next;
-    });
-  }, []);
+    const next = name === 'dark' ? 'light' : 'dark';
+    setName(next);
+    AsyncStorage.setItem(STORAGE_KEY, next).catch(() => undefined);
+  }, [name]);
 
   const palette = name === 'dark' ? darkPalette : lightPalette;
+
+  if (!restored) {
+    return null;
+  }
 
   return (
     <ThemeContext.Provider value={{ name, palette, fontsReady, toggleTheme }}>

@@ -9,9 +9,12 @@ const ITEM_COLUMNS =
 
 const STAT_PAGE = 1000;
 const MAX_STAT_PAGES = 40;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const seenItems = new Map<string, Item>();
 
 function normalizeItem(row: Item): Item {
-  return {
+  const item: Item = {
     ...row,
     topics: Array.isArray(row.topics) ? row.topics : [],
     summary: row.summary ?? null,
@@ -20,6 +23,12 @@ function normalizeItem(row: Item): Item {
     importance: row.importance ?? null,
     item_date: row.item_date ?? null,
   };
+  seenItems.set(item.id, item);
+  return item;
+}
+
+export function peekItem(id: string): Item | null {
+  return seenItems.get(id) ?? null;
 }
 
 export async function fetchItems(args: {
@@ -30,10 +39,7 @@ export async function fetchItems(args: {
   let query = supabase.from('items').select(ITEM_COLUMNS, { count: 'exact' });
   const trimmed = args.search.trim();
   if (trimmed.length > 0) {
-    query = query.textSearch('fts', trimmed, {
-      type: 'websearch',
-      config: 'english',
-    });
+    query = query.textSearch('fts', trimmed, { type: 'websearch', config: 'english' });
   }
   if (args.filters.source !== 'all') {
     query = query.eq('source', args.filters.source);
@@ -54,21 +60,22 @@ export async function fetchItems(args: {
   }
 
   const from = args.page * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
   const { data, error, count } = await query
     .order('item_date', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
-    .range(from, to);
+    .range(from, from + PAGE_SIZE - 1);
 
   if (error) {
     throw new Error(error.message);
   }
-  const items = ((data ?? []) as Item[]).map(normalizeItem);
-  return { items, count };
+  return { items: ((data ?? []) as Item[]).map(normalizeItem), count };
 }
 
 export async function fetchItem(id: string): Promise<Item | null> {
+  if (!UUID_PATTERN.test(id)) {
+    return null;
+  }
   const { data, error } = await supabase.from('items').select(ITEM_COLUMNS).eq('id', id).maybeSingle();
   if (error) {
     throw new Error(error.message);
@@ -79,16 +86,17 @@ export async function fetchItem(id: string): Promise<Item | null> {
   return normalizeItem(data as Item);
 }
 
+// Pages in insertion order so rows added during the scan land on the last page instead of shifting earlier ones.
 export async function fetchStatRows(): Promise<StatRow[]> {
   const rows: StatRow[] = [];
   for (let page = 0; page < MAX_STAT_PAGES; page += 1) {
     const from = page * STAT_PAGE;
-    const to = from + STAT_PAGE - 1;
     const { data, error } = await supabase
       .from('items')
       .select('source, topics, importance, item_date')
+      .order('created_at', { ascending: true })
       .order('id', { ascending: true })
-      .range(from, to);
+      .range(from, from + STAT_PAGE - 1);
     if (error) {
       throw new Error(error.message);
     }

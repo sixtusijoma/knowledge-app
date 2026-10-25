@@ -1,5 +1,6 @@
 import type { ExpoConfig } from 'expo/config';
 
+// The anon key is public by design: row level security only allows reads.
 const supabaseUrl =
   process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://your-project.supabase.co';
 const supabaseAnonKey =

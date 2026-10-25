@@ -1,4 +1,4 @@
-import type { Importance, Source } from '@/lib/types';
+import type { Importance, Item, Source } from '@/lib/types';
 
 export function formatCount(value: number): string {
   return new Intl.NumberFormat('en-US').format(value);
@@ -53,4 +53,20 @@ export function sourcePlural(source: Source): string {
     return 'X Bookmarks';
   }
   return 'Grok Chats';
+}
+
+export function externalIdLabel(source: Source): string {
+  if (source === 'X Bookmark') {
+    return 'X post ID';
+  }
+  return 'Grok chat ID';
+}
+
+// The importer writes `Grok chat titled "<title>".` when a chat has no real summary.
+export function meaningfulSummary(item: Pick<Item, 'title' | 'summary'>): string | null {
+  const summary = item.summary?.trim() ?? '';
+  if (summary.length === 0 || summary === `Grok chat titled "${item.title}".`) {
+    return null;
+  }
+  return summary;
 }

@@ -1,29 +1,23 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { SourceBadge } from '@/components/SourceBadge';
 import { formatItemDate } from '@/lib/dates';
-import { importanceLabel } from '@/lib/format';
+import { importanceLabel, meaningfulSummary } from '@/lib/format';
 import { importanceColor, useTheme, useType } from '@/lib/theme';
 import type { Item } from '@/lib/types';
 
-type Props = {
-  item: Item;
-};
-
-export function ItemCard({ item }: Props) {
+export function ItemCard({ item }: { item: Item }) {
   const { palette } = useTheme();
   const type = useType();
-  const sourceColors =
-    item.source === 'X Bookmark'
-      ? { background: palette.xBg, text: palette.xFg }
-      : { background: palette.grokBg, text: palette.grokFg };
   const tone = importanceColor(palette, item.importance);
+  const summary = meaningfulSummary(item);
 
   return (
     <Pressable
       testID="item-card"
       accessibilityRole="button"
-      accessibilityLabel={`${item.source}, ${formatItemDate(item.item_date)}, ${item.title}`}
+      accessibilityLabel={`${item.title}. ${item.source}, ${formatItemDate(item.item_date)}, ${importanceLabel(item.importance)} importance.`}
       onPress={() => {
         router.push({
           pathname: '/item/[id]',
@@ -40,11 +34,7 @@ export function ItemCard({ item }: Props) {
       ]}
     >
       <View style={styles.meta}>
-        <View style={[styles.badge, { backgroundColor: sourceColors.background }]}>
-          <Text style={[styles.badgeText, { color: sourceColors.text, fontFamily: type.sansSemibold }]}>
-            {item.source}
-          </Text>
-        </View>
+        <SourceBadge source={item.source} />
         <Text style={[styles.date, { color: palette.textMuted, fontFamily: type.sans }]}>
           {formatItemDate(item.item_date)}
         </Text>
@@ -55,9 +45,9 @@ export function ItemCard({ item }: Props) {
       <Text numberOfLines={3} style={[styles.title, { color: palette.text, fontFamily: type.serif }]}>
         {item.title}
       </Text>
-      {item.summary ? (
+      {summary ? (
         <Text numberOfLines={2} style={[styles.summary, { color: palette.textSecondary, fontFamily: type.sans }]}>
-          {item.summary}
+          {summary}
         </Text>
       ) : null}
       <View style={styles.footer}>
@@ -91,15 +81,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  badge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  badgeText: {
-    fontSize: 11,
-    letterSpacing: 0.2,
   },
   date: {
     fontSize: 12,

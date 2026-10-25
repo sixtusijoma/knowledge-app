@@ -7,18 +7,19 @@ import { buildStats, type Stats } from '@/lib/stats';
 
 export function useStats() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const hasStats = useRef(false);
   const requestId = useRef(0);
 
-  const reload = useCallback(async () => {
+  // 'focus' refetches quietly behind what is already on screen; 'pull' shows the refresh spinner.
+  const load = useCallback(async (mode: 'focus' | 'pull' | 'retry') => {
     const id = requestId.current + 1;
     requestId.current = id;
-    if (hasStats.current) {
+    if (mode === 'pull') {
       setRefreshing(true);
-    } else {
+    } else if (mode === 'retry') {
       setLoading(true);
     }
     try {
@@ -26,8 +27,9 @@ export function useStats() {
       if (id !== requestId.current) {
         return;
       }
-      setStats(buildStats(rows, new Date()));
-      hasStats.current = true;
+      const now = new Date();
+      setStats(buildStats(rows, now));
+      setUpdatedAt(now);
       setError(null);
     } catch (err) {
       if (id !== requestId.current) {
@@ -44,9 +46,17 @@ export function useStats() {
 
   useFocusEffect(
     useCallback(() => {
-      reload().catch(() => undefined);
-    }, [reload]),
+      load('focus').catch(() => undefined);
+    }, [load]),
   );
 
-  return { stats, loading, refreshing, error, reload };
+  return {
+    stats,
+    updatedAt,
+    loading,
+    refreshing,
+    error,
+    refresh: () => load('pull'),
+    retry: () => load('retry'),
+  };
 }

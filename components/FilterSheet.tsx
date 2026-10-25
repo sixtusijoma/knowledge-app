@@ -1,10 +1,21 @@
-import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/Buttons';
 import { availableYears, isMonthSelectable, MONTH_SHORT, monthKey } from '@/lib/dates';
-import { activeFilterCount, EMPTY_FILTERS, rangeHint } from '@/lib/filters';
+import { activeFilterCount, customRange, EMPTY_FILTERS, rangeHint } from '@/lib/filters';
 import { formatEntries } from '@/lib/format';
 import { useTheme, useType } from '@/lib/theme';
 import { TOPICS } from '@/lib/topics';
@@ -14,6 +25,7 @@ type Props = {
   visible: boolean;
   filters: ItemFilters;
   total: number | null;
+  loading: boolean;
   onChange: (filters: ItemFilters) => void;
   onClose: () => void;
 };
@@ -31,35 +43,33 @@ const LEVELS: { value: ImportanceFilter; label: string; testID: string }[] = [
   { value: 'Low', label: 'Low', testID: 'filter-importance-low' },
 ];
 
-export function FilterSheet({ visible, filters, total, onChange, onClose }: Props) {
+export function FilterSheet({ visible, filters, total, loading, onChange, onClose }: Props) {
   const { palette } = useTheme();
   const type = useType();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const [now] = useState(() => new Date());
-  const initialYear = filters.month ? Number(filters.month.slice(0, 4)) : now.getFullYear();
-  const [year, setYear] = useState(initialYear);
-  const years = availableYears(now);
+  const [year, setYear] = useState(() => (filters.month ? Number(filters.month.slice(0, 4)) : now.getFullYear()));
   const hint = rangeHint(filters.from, filters.to);
-  const sheetHeight = Math.min(Math.round(height * 0.92), height - 12);
+  const dirty = activeFilterCount(filters) > 0 || filters.from !== null || filters.to !== null;
 
   function updateDate(field: 'from' | 'to', value: string) {
-    const from = field === 'from' ? value : (filters.from ?? '');
-    const to = field === 'to' ? value : (filters.to ?? '');
-    const ready = rangeHint(from, to) === null && from.length === 10 && to.length === 10;
-    let month = filters.month;
-    if (ready) {
-      month = null;
+    const next: ItemFilters = { ...filters, [field]: value.length === 0 ? null : value };
+    if (customRange(next)) {
+      next.month = null;
     }
-    onChange({
-      ...filters,
-      from: from.length === 0 ? null : from,
-      to: to.length === 0 ? null : to,
-      month,
-    });
+    onChange(next);
   }
 
-  const doneLabel = total === null ? 'Updating…' : `Show ${formatEntries(total)}`;
+  function doneLabel(): string {
+    if (loading) {
+      return 'Updating…';
+    }
+    if (total === null) {
+      return 'Done';
+    }
+    return `Show ${formatEntries(total)}`;
+  }
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -70,7 +80,7 @@ export function FilterSheet({ visible, filters, total, onChange, onClose }: Prop
           style={[
             styles.sheet,
             {
-              height: sheetHeight,
+              height: Math.min(Math.round(height * 0.92), height - 12),
               backgroundColor: palette.bg,
               paddingBottom: Math.max(insets.bottom, 12),
             },
@@ -81,15 +91,16 @@ export function FilterSheet({ visible, filters, total, onChange, onClose }: Prop
             <Text style={[styles.title, { color: palette.text, fontFamily: type.serif }]}>Filters</Text>
             <Pressable
               testID="filter-clear"
-              disabled={activeFilterCount(filters) === 0}
+              disabled={!dirty}
               onPress={() => {
                 onChange(EMPTY_FILTERS);
               }}
               accessibilityRole="button"
+              hitSlop={10}
             >
               <Text
                 style={{
-                  color: activeFilterCount(filters) === 0 ? palette.textMuted : palette.accent,
+                  color: dirty ? palette.accent : palette.textMuted,
                   fontFamily: type.sansSemibold,
                   fontSize: 15,
                 }}
@@ -102,255 +113,220 @@ export function FilterSheet({ visible, filters, total, onChange, onClose }: Prop
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
-            <Text style={[styles.section, { color: palette.textMuted, fontFamily: type.sansSemibold }]}>Source</Text>
-            <View style={styles.choices}>
-              {SOURCES.map((option) => {
-                const selected = filters.source === option.value;
-                return (
-                  <Pressable
+            <Section title="Source">
+              <View style={styles.wrap}>
+                {SOURCES.map((option) => (
+                  <Pill
                     key={option.value}
                     testID={option.testID}
+                    label={option.label}
+                    selected={filters.source === option.value}
                     onPress={() => {
                       onChange({ ...filters, source: option.value });
                     }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    style={[
-                      styles.choice,
-                      {
-                        backgroundColor: selected ? palette.accent : palette.chip,
-                        borderColor: selected ? palette.accent : palette.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? palette.accentText : palette.chipText,
-                        fontFamily: type.sansMedium,
-                        fontSize: 13,
-                      }}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                  />
+                ))}
+              </View>
+            </Section>
 
-            <Text style={[styles.section, { color: palette.textMuted, fontFamily: type.sansSemibold }]}>
-              Importance
-            </Text>
-            <View style={styles.choices}>
-              {LEVELS.map((option) => {
-                const selected = filters.importance === option.value;
-                return (
-                  <Pressable
+            <Section title="Importance">
+              <View style={styles.wrap}>
+                {LEVELS.map((option) => (
+                  <Pill
                     key={option.value}
                     testID={option.testID}
+                    label={option.label}
+                    selected={filters.importance === option.value}
                     onPress={() => {
                       onChange({ ...filters, importance: option.value });
                     }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    style={[
-                      styles.choice,
-                      {
-                        backgroundColor: selected ? palette.accent : palette.chip,
-                        borderColor: selected ? palette.accent : palette.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? palette.accentText : palette.chipText,
-                        fontFamily: type.sansMedium,
-                        fontSize: 13,
-                      }}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                  />
+                ))}
+              </View>
+            </Section>
 
-            <Text style={[styles.section, { color: palette.textMuted, fontFamily: type.sansSemibold }]}>Topics</Text>
-            <Text style={[styles.hint, { color: palette.textMuted, fontFamily: type.sans }]}>
-              Match any selected topic.
-            </Text>
-            <View style={styles.topics}>
-              {TOPICS.map((topic) => {
-                const selected = filters.topics.includes(topic);
-                return (
-                  <Pressable
-                    key={topic}
-                    testID={`filter-topic-${topic}`}
-                    onPress={() => {
-                      const topics = selected
-                        ? filters.topics.filter((item) => item !== topic)
-                        : [...filters.topics, topic];
-                      onChange({ ...filters, topics });
-                    }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    style={[
-                      styles.topic,
-                      {
-                        backgroundColor: selected ? palette.accent : palette.chip,
-                        borderColor: selected ? palette.accent : palette.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? palette.accentText : palette.chipText,
-                        fontFamily: type.sansMedium,
-                        fontSize: 13,
+            <Section title="Topics" hint="Match any selected topic.">
+              <View style={styles.wrap}>
+                {TOPICS.map((topic) => {
+                  const selected = filters.topics.includes(topic);
+                  return (
+                    <Pill
+                      key={topic}
+                      testID={`filter-topic-${topic}`}
+                      label={topic}
+                      selected={selected}
+                      onPress={() => {
+                        const topics = selected
+                          ? filters.topics.filter((item) => item !== topic)
+                          : [...filters.topics, topic];
+                        onChange({ ...filters, topics });
                       }}
-                    >
-                      {topic}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                    />
+                  );
+                })}
+              </View>
+            </Section>
 
-            <Text style={[styles.section, { color: palette.textMuted, fontFamily: type.sansSemibold }]}>When</Text>
-            <Text style={[styles.hint, { color: palette.textMuted, fontFamily: type.sans }]}>
-              Pick a month, or enter a start and end date.
-            </Text>
-            <View style={styles.years}>
-              {years.map((option) => {
-                const selected = option === year;
-                return (
-                  <Pressable
+            <Section title="Month">
+              <View style={styles.row}>
+                {availableYears(now).map((option) => (
+                  <Pill
                     key={option}
                     testID={`filter-year-${option}`}
+                    label={String(option)}
+                    variant="tab"
+                    selected={option === year}
                     onPress={() => {
                       setYear(option);
                     }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    style={[
-                      styles.year,
-                      {
-                        backgroundColor: selected ? palette.text : 'transparent',
-                        borderColor: selected ? palette.text : palette.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? palette.bg : palette.text,
-                        fontFamily: type.sansMedium,
-                        fontSize: 13,
+                  />
+                ))}
+              </View>
+              <View style={styles.months}>
+                {MONTH_SHORT.map((label, index) => {
+                  const key = monthKey(year, index + 1);
+                  return (
+                    <Pill
+                      key={key}
+                      testID={`filter-month-${key}`}
+                      label={label}
+                      style={styles.month}
+                      disabled={!isMonthSelectable(year, index + 1, now)}
+                      selected={filters.month === key}
+                      onPress={() => {
+                        if (filters.month === key) {
+                          onChange({ ...filters, month: null });
+                          return;
+                        }
+                        onChange({ ...filters, month: key, from: null, to: null });
                       }}
-                    >
-                      {option}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <View style={styles.months}>
-              {MONTH_SHORT.map((label, index) => {
-                const monthNumber = index + 1;
-                const key = monthKey(year, monthNumber);
-                const enabled = isMonthSelectable(year, monthNumber, now);
-                const selected = filters.month === key;
-                return (
-                  <Pressable
-                    key={key}
-                    testID={`filter-month-${key}`}
-                    disabled={!enabled}
-                    onPress={() => {
-                      if (filters.month === key) {
-                        onChange({ ...filters, month: null });
-                        return;
-                      }
-                      onChange({ ...filters, month: key, from: null, to: null });
-                    }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected, disabled: !enabled }}
-                    style={[
-                      styles.month,
-                      {
-                        backgroundColor: selected ? palette.accent : palette.chip,
-                        borderColor: selected ? palette.accent : palette.border,
-                        opacity: enabled ? 1 : 0.35,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? palette.accentText : palette.chipText,
-                        fontFamily: type.sansMedium,
-                        fontSize: 13,
-                      }}
-                    >
-                      {label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                    />
+                  );
+                })}
+              </View>
+            </Section>
 
-            <Text style={[styles.section, { color: palette.textMuted, fontFamily: type.sansSemibold }]}>
-              Custom range
-            </Text>
-            <View style={styles.dates}>
-              <TextInput
-                testID="filter-from"
-                value={filters.from ?? ''}
-                onChangeText={(value) => {
-                  updateDate('from', value);
-                }}
-                placeholder="From YYYY-MM-DD"
-                placeholderTextColor={palette.textMuted}
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={[
-                  styles.dateInput,
-                  {
-                    color: palette.text,
-                    borderColor: palette.border,
-                    backgroundColor: palette.input,
-                    fontFamily: type.sans,
-                  },
-                ]}
-              />
-              <TextInput
-                testID="filter-to"
-                value={filters.to ?? ''}
-                onChangeText={(value) => {
-                  updateDate('to', value);
-                }}
-                placeholder="To YYYY-MM-DD"
-                placeholderTextColor={palette.textMuted}
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={[
-                  styles.dateInput,
-                  {
-                    color: palette.text,
-                    borderColor: palette.border,
-                    backgroundColor: palette.input,
-                    fontFamily: type.sans,
-                  },
-                ]}
-              />
-            </View>
-            {hint ? (
-              <Text style={[styles.hint, { color: palette.danger, fontFamily: type.sans }]}>{hint}</Text>
-            ) : null}
+            <Section title="Date range" hint="Leave either end open. A range replaces the month.">
+              <View style={styles.row}>
+                <DateField
+                  label="From"
+                  testID="filter-from"
+                  value={filters.from}
+                  onChange={(value) => {
+                    updateDate('from', value);
+                  }}
+                />
+                <DateField
+                  label="To"
+                  testID="filter-to"
+                  value={filters.to}
+                  onChange={(value) => {
+                    updateDate('to', value);
+                  }}
+                />
+              </View>
+              {hint ? (
+                <Text testID="filter-range-hint" style={[styles.hint, { color: palette.danger, fontFamily: type.sans }]}>
+                  {hint}
+                </Text>
+              ) : null}
+            </Section>
           </ScrollView>
           <View style={[styles.footer, { borderTopColor: palette.border }]}>
-            <PrimaryButton label={doneLabel} onPress={onClose} testID="filter-done" />
+            <PrimaryButton label={doneLabel()} onPress={onClose} testID="filter-done" />
           </View>
         </View>
       </View>
     </Modal>
+  );
+}
+
+function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+  const { palette } = useTheme();
+  const type = useType();
+  return (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: palette.textMuted, fontFamily: type.sansSemibold }]}>{title}</Text>
+      {hint ? <Text style={[styles.hint, { color: palette.textMuted, fontFamily: type.sans }]}>{hint}</Text> : null}
+      {children}
+    </View>
+  );
+}
+
+type PillProps = {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  testID: string;
+  disabled?: boolean;
+  variant?: 'choice' | 'tab';
+  style?: StyleProp<ViewStyle>;
+};
+
+function Pill({ label, selected, onPress, testID, disabled = false, variant = 'choice', style }: PillProps) {
+  const { palette } = useTheme();
+  const type = useType();
+  let colors = { background: palette.chip, border: palette.border, text: palette.chipText };
+  if (selected && variant === 'choice') {
+    colors = { background: palette.accent, border: palette.accent, text: palette.accentText };
+  } else if (selected) {
+    colors = { background: palette.text, border: palette.text, text: palette.bg };
+  } else if (variant === 'tab') {
+    colors = { background: 'transparent', border: palette.border, text: palette.text };
+  }
+  return (
+    <Pressable
+      testID={testID}
+      disabled={disabled}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected, disabled }}
+      style={[
+        styles.pill,
+        style,
+        { backgroundColor: colors.background, borderColor: colors.border, opacity: disabled ? 0.35 : 1 },
+      ]}
+    >
+      <Text style={[styles.pillText, { color: colors.text, fontFamily: type.sansMedium }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function DateField({
+  label,
+  testID,
+  value,
+  onChange,
+}: {
+  label: string;
+  testID: string;
+  value: string | null;
+  onChange: (value: string) => void;
+}) {
+  const { palette } = useTheme();
+  const type = useType();
+  return (
+    <View style={styles.dateField}>
+      <Text style={[styles.dateLabel, { color: palette.textSecondary, fontFamily: type.sansMedium }]}>{label}</Text>
+      <TextInput
+        testID={testID}
+        value={value ?? ''}
+        onChangeText={onChange}
+        placeholder="YYYY-MM-DD"
+        placeholderTextColor={palette.textMuted}
+        accessibilityLabel={`${label} date, YYYY-MM-DD`}
+        keyboardType="numbers-and-punctuation"
+        maxLength={10}
+        autoCapitalize="none"
+        autoCorrect={false}
+        style={[
+          styles.dateInput,
+          { color: palette.text, borderColor: palette.border, backgroundColor: palette.input, fontFamily: type.sans },
+        ]}
+      />
+    </View>
   );
 }
 
@@ -393,11 +369,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    gap: 8,
+    paddingBottom: 24,
+    gap: 22,
   },
   section: {
-    marginTop: 16,
+    gap: 10,
+  },
+  sectionTitle: {
+    marginTop: 4,
     fontSize: 12,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -405,58 +384,45 @@ const styles = StyleSheet.create({
   hint: {
     fontSize: 13,
     lineHeight: 18,
+    marginTop: -4,
   },
-  choices: {
+  wrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  choice: {
+  row: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  pill: {
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  topics: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  topic: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  years: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  year: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+  pillText: {
+    fontSize: 13,
   },
   months: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 4,
   },
   month: {
     width: '22%',
     flexGrow: 1,
-    borderWidth: 1,
     borderRadius: 12,
     minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  dates: {
-    gap: 8,
-    marginTop: 4,
+  dateField: {
+    flex: 1,
+    gap: 6,
+  },
+  dateLabel: {
+    fontSize: 13,
   },
   dateInput: {
     borderWidth: 1,

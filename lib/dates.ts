@@ -1,17 +1,4 @@
-const MONTH_SHORT = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
+export const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const MONTH_LONG = [
   'January',
@@ -147,6 +134,10 @@ export function formatTimestamp(value: string): string {
   }).format(date);
 }
 
+export function formatClock(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
+}
+
 export function isMonthSelectable(year: number, month: number, now: Date): boolean {
   const value = year * 12 + month;
   const start = LIBRARY_START_YEAR * 12 + LIBRARY_START_MONTH;
@@ -162,5 +153,3 @@ export function availableYears(now: Date): number[] {
   }
   return years;
 }
-
-export { MONTH_SHORT };

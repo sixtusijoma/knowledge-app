@@ -1,12 +1,8 @@
-import {
-  DMSans_400Regular,
-  DMSans_500Medium,
-  DMSans_600SemiBold,
-} from '@expo-google-fonts/dm-sans';
-import {
-  Newsreader_500Medium_Italic,
-  Newsreader_600SemiBold,
-} from '@expo-google-fonts/newsreader';
+import { DMSans_400Regular } from '@expo-google-fonts/dm-sans/400Regular';
+import { DMSans_500Medium } from '@expo-google-fonts/dm-sans/500Medium';
+import { DMSans_600SemiBold } from '@expo-google-fonts/dm-sans/600SemiBold';
+import { Newsreader_500Medium_Italic } from '@expo-google-fonts/newsreader/500Medium_Italic';
+import { Newsreader_600SemiBold } from '@expo-google-fonts/newsreader/600SemiBold';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -33,16 +29,7 @@ export default function RootLayout() {
     DMSans_500Medium,
     DMSans_600SemiBold,
   });
-  const ready = loaded || fontError != null;
-
-  useEffect(() => {
-    if (!ready) {
-      return;
-    }
-    SplashScreen.hideAsync().catch(() => undefined);
-  }, [ready]);
-
-  if (!ready) {
+  if (!loaded && fontError == null) {
     return null;
   }
 
@@ -70,6 +57,10 @@ function ThemedApp() {
       },
     };
   }, [name, palette]);
+
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     return applyWebChrome(palette.canvas, name);

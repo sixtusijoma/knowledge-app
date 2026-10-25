@@ -1,51 +1,45 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/Buttons';
 import { ArrowUpRightIcon, ChevronLeftIcon } from '@/components/Icons';
-import { EmptyState, ErrorState, FeedSkeleton } from '@/components/StateViews';
+import { SourceBadge } from '@/components/SourceBadge';
+import { DetailSkeleton, EmptyState, ErrorState } from '@/components/StateViews';
 import { formatItemDate, formatTimestamp } from '@/lib/dates';
-import { importanceLabel, openLabel } from '@/lib/format';
-import { openExternal } from '@/lib/open-external';
-import { fetchItem } from '@/lib/queries';
+import { externalIdLabel, importanceLabel, meaningfulSummary, messageOf, openLabel } from '@/lib/format';
+import { fetchItem, peekItem } from '@/lib/queries';
 import { importanceColor, useTheme, useType } from '@/lib/theme';
 import type { Item } from '@/lib/types';
 
+function openLink(url: string) {
+  Linking.openURL(url).catch(() => undefined);
+}
+
 export default function ItemScreen() {
-  const params = useLocalSearchParams<{ id: string }>();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const { id = '' } = useLocalSearchParams<{ id: string }>();
   const { palette } = useTheme();
   const type = useType();
   const insets = useSafeAreaInsets();
-  const [item, setItem] = useState<Item | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [item, setItem] = useState<Item | null>(() => peekItem(id));
+  const [loading, setLoading] = useState(item === null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      if (!id) {
-        setItem(null);
-        setLoading(false);
-        setError('Missing entry id.');
-        return;
-      }
-      setLoading(true);
-      setError(null);
       try {
         const next = await fetchItem(id);
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          setItem(next);
+          setError(null);
         }
-        setItem(next);
       } catch (err) {
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          setError(messageOf(err));
         }
-        setItem(null);
-        setError(err instanceof Error ? err.message : 'Something went wrong loading this entry.');
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -56,7 +50,7 @@ export default function ItemScreen() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, attempt]);
 
   function goBack() {
     if (router.canGoBack()) {
@@ -64,6 +58,47 @@ export default function ItemScreen() {
       return;
     }
     router.replace('/');
+  }
+
+  function body() {
+    if (item) {
+      return (
+        <ScrollView contentContainerStyle={styles.content}>
+          <EntryBody item={item} />
+        </ScrollView>
+      );
+    }
+    if (loading) {
+      return (
+        <View style={styles.pad}>
+          <DetailSkeleton />
+        </View>
+      );
+    }
+    if (error) {
+      return (
+        <View style={styles.pad}>
+          <ErrorState
+            title="Couldn’t open this entry"
+            message={error}
+            onRetry={() => {
+              setLoading(true);
+              setAttempt((current) => current + 1);
+            }}
+          />
+        </View>
+      );
+    }
+    return (
+      <View style={styles.pad}>
+        <EmptyState
+          title="Entry not found"
+          message="This link doesn’t match anything in the library."
+          actionLabel="Back to the feed"
+          onAction={goBack}
+        />
+      </View>
+    );
   }
 
   return (
@@ -75,93 +110,45 @@ export default function ItemScreen() {
           onPress={goBack}
           accessibilityRole="button"
           accessibilityLabel="Back to the feed"
+          hitSlop={8}
           style={styles.back}
         >
           <ChevronLeftIcon color={palette.text} />
           <Text style={[styles.backLabel, { color: palette.text, fontFamily: type.sansMedium }]}>Feed</Text>
         </Pressable>
       </View>
-      {loading ? (
-        <View style={styles.pad}>
-          <FeedSkeleton />
-        </View>
-      ) : null}
-      {!loading && error ? (
-        <View style={styles.pad}>
-          <ErrorState
-            title="Couldn’t open this entry"
-            message={error}
-            onRetry={() => {
-              if (!id) {
-                return;
-              }
-              setLoading(true);
-              fetchItem(id)
-                .then((next) => {
-                  setItem(next);
-                  setError(null);
-                })
-                .catch((err: unknown) => {
-                  setError(err instanceof Error ? err.message : 'Something went wrong loading this entry.');
-                })
-                .finally(() => {
-                  setLoading(false);
-                });
-            }}
-          />
-        </View>
-      ) : null}
-      {!loading && !error && !item ? (
-        <View style={styles.pad}>
-          <EmptyState title="Entry not found" message="This record isn’t in the library anymore." />
-        </View>
-      ) : null}
-      {!loading && item ? (
-        <>
-          <ScrollView contentContainerStyle={styles.content}>
-            <EntryBody item={item} />
-          </ScrollView>
-          <View
-            style={[
-              styles.footer,
-              {
-                borderTopColor: palette.border,
-                backgroundColor: palette.bg,
-                paddingBottom: Math.max(insets.bottom, 12),
-              },
-            ]}
-          >
-            <PrimaryButton
-              testID="open-link"
-              label={item.link ? openLabel(item.source) : 'No original link'}
-              disabled={!item.link}
-              onPress={() => {
-                if (item.link) {
-                  openExternal(item.link);
-                }
-              }}
-              icon={item.link ? <ArrowUpRightIcon color={palette.accentText} /> : undefined}
-            />
-            {item.link ? (
+      {body()}
+      {item ? (
+        <View
+          style={[
+            styles.footer,
+            { borderTopColor: palette.border, backgroundColor: palette.bg, paddingBottom: Math.max(insets.bottom, 12) },
+          ]}
+        >
+          {item.link ? (
+            <>
+              <PrimaryButton
+                testID="open-link"
+                label={openLabel(item.source)}
+                onPress={() => {
+                  openLink(item.link ?? '');
+                }}
+                icon={<ArrowUpRightIcon color={palette.accentText} />}
+              />
               <Text
                 testID="detail-link"
                 selectable
-                onPress={() => {
-                  if (item.link) {
-                    openExternal(item.link);
-                  }
-                }}
+                numberOfLines={1}
+                ellipsizeMode="middle"
                 style={[styles.link, { color: palette.textMuted, fontFamily: type.sans }]}
               >
                 {item.link}
               </Text>
-            ) : (
-              <Text testID="detail-link" style={[styles.link, { color: palette.textMuted, fontFamily: type.sans }]}>
-                No link saved
-              </Text>
-            )}
-          </View>
-        </>
+            </>
+          ) : (
+            <PrimaryButton testID="open-link" label="No original link saved" disabled onPress={() => undefined} />
+          )}
+        </View>
       ) : null}
     </View>
   );
@@ -170,44 +157,43 @@ export default function ItemScreen() {
 function EntryBody({ item }: { item: Item }) {
   const { palette } = useTheme();
   const type = useType();
-  const sourceColors =
-    item.source === 'X Bookmark'
-      ? { background: palette.xBg, text: palette.xFg }
-      : { background: palette.grokBg, text: palette.grokFg };
-  const tone = importanceColor(palette, item.importance);
+  const summary = meaningfulSummary(item);
 
   return (
     <View>
       <View style={styles.meta}>
-        <View style={[styles.badge, { backgroundColor: sourceColors.background }]}>
-          <Text
-            testID="detail-source"
-            style={[styles.badgeText, { color: sourceColors.text, fontFamily: type.sansSemibold }]}
-          >
-            {item.source}
-          </Text>
-        </View>
-        <Text testID="detail-importance" style={[styles.importance, { color: tone, fontFamily: type.sansMedium }]}>
-          {importanceLabel(item.importance)}
+        <SourceBadge source={item.source} testID="detail-source" />
+        <Text
+          testID="detail-importance"
+          style={[styles.importance, { color: importanceColor(palette, item.importance), fontFamily: type.sansMedium }]}
+        >
+          {`${importanceLabel(item.importance)} importance`}
         </Text>
       </View>
       <Text testID="detail-date" style={[styles.date, { color: palette.textMuted, fontFamily: type.sans }]}>
         {formatItemDate(item.item_date)}
       </Text>
-      <Text testID="detail-title" style={[styles.title, { color: palette.text, fontFamily: type.serif }]}>
+      <Text testID="detail-title" selectable style={[styles.title, { color: palette.text, fontFamily: type.serif }]}>
         {item.title}
       </Text>
+
       <Text style={[styles.section, { color: palette.textMuted, fontFamily: type.sansSemibold }]}>Summary</Text>
       <Text
         testID="detail-summary"
         selectable
-        style={[styles.summary, { color: palette.textSecondary, fontFamily: type.sans }]}
+        style={[
+          styles.summary,
+          summary
+            ? { color: palette.textSecondary, fontFamily: type.sans }
+            : { color: palette.textMuted, fontFamily: type.sans, fontSize: 15 },
+        ]}
       >
-        {item.summary && item.summary.length > 0 ? item.summary : 'No summary saved.'}
+        {summary ?? 'Only the title was saved for this entry.'}
       </Text>
+
       <Text style={[styles.section, { color: palette.textMuted, fontFamily: type.sansSemibold }]}>Topics</Text>
       {item.topics.length > 0 ? (
-        <View style={styles.topics}>
+        <View testID="detail-topics" style={styles.topics}>
           {item.topics.map((topic) => (
             <View key={topic} style={[styles.topic, { backgroundColor: palette.chip }]}>
               <Text style={[styles.topicText, { color: palette.chipText, fontFamily: type.sansMedium }]}>{topic}</Text>
@@ -215,12 +201,15 @@ function EntryBody({ item }: { item: Item }) {
           ))}
         </View>
       ) : (
-        <Text style={[styles.value, { color: palette.text, fontFamily: type.sans }]}>No topics</Text>
+        <Text style={[styles.value, { color: palette.textMuted, fontFamily: type.sans }]}>No topics</Text>
       )}
-      <Field label="Author" value={item.author ?? '—'} testID="detail-author" />
-      <Field label="External ID" value={item.external_id} testID="detail-external-id" />
-      <Field label="Saved" value={formatTimestamp(item.created_at)} testID="detail-saved" />
-      <Field label="Record ID" value={item.id} testID="detail-id" />
+
+      <View style={styles.fields}>
+        {item.author ? <Field label="Author" value={item.author} testID="detail-author" /> : null}
+        <Field label={externalIdLabel(item.source)} value={item.external_id} testID="detail-external-id" />
+        <Field label="Added to library" value={formatTimestamp(item.created_at)} testID="detail-saved" />
+        <Field label="Record ID" value={item.id} testID="detail-id" />
+      </View>
     </View>
   );
 }
@@ -269,14 +258,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  badge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  badgeText: {
-    fontSize: 12,
-  },
   importance: {
     fontSize: 13,
   },
@@ -285,12 +266,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   title: {
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 30,
+    lineHeight: 36,
     marginTop: 6,
   },
   section: {
-    marginTop: 22,
+    marginTop: 24,
     marginBottom: 8,
     fontSize: 11,
     letterSpacing: 0.8,
@@ -313,10 +294,12 @@ const styles = StyleSheet.create({
   topicText: {
     fontSize: 13,
   },
+  fields: {
+    marginTop: 24,
+  },
   field: {
     borderTopWidth: 1,
     paddingVertical: 12,
-    marginTop: 14,
     gap: 4,
   },
   fieldLabel: {

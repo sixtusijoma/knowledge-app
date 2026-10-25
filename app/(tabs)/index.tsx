@@ -16,8 +16,8 @@ import { CloseIcon, FilterIcon, MoonIcon, SunIcon } from '@/components/Icons';
 import { ItemCard } from '@/components/ItemCard';
 import { SearchField } from '@/components/SearchField';
 import { Banner, EmptyState, ErrorState, FeedSkeleton } from '@/components/StateViews';
-import { formatItemDate, formatMonthKey } from '@/lib/dates';
-import { activeFilterCount, EMPTY_FILTERS, hasCustomRange } from '@/lib/filters';
+import { formatMonthKey } from '@/lib/dates';
+import { activeFilterCount, customRange, EMPTY_FILTERS, rangeLabel } from '@/lib/filters';
 import { formatCount, formatEntries, sourcePlural } from '@/lib/format';
 import { useTheme, useType } from '@/lib/theme';
 import type { Item, ItemFilters } from '@/lib/types';
@@ -51,10 +51,28 @@ export default function FeedScreen() {
 
   const chips = buildChips(filters, setFilters);
   const narrowed = search.trim().length > 0 || activeFilterCount(filters) > 0;
+  const firstPageError = error?.place === 'first' ? error : null;
 
   function clearAll() {
     setSearch('');
     setFilters(EMPTY_FILTERS);
+  }
+
+  function countLabel(): string {
+    if (loading) {
+      return 'Loading…';
+    }
+    if (total === null) {
+      return firstPageError ? 'Not loaded' : '';
+    }
+    return formatEntries(total);
+  }
+
+  function footerLabel(): string {
+    if (total !== null && items.length >= total) {
+      return `End of list · ${formatEntries(total)}`;
+    }
+    return `Showing ${formatCount(items.length)} of ${formatCount(total ?? items.length)}`;
   }
 
   return (
@@ -93,7 +111,7 @@ export default function FeedScreen() {
           accessibilityLiveRegion="polite"
           style={[styles.count, { color: palette.textSecondary, fontFamily: type.sansMedium }]}
         >
-          {total === null ? 'Loading…' : formatEntries(total)}
+          {countLabel()}
         </Text>
         <SearchField value={search} onChange={setSearch} />
         {chips.length > 0 ? (
@@ -115,9 +133,9 @@ export default function FeedScreen() {
             ))}
           </View>
         ) : null}
-        {error?.place === 'refresh' ? (
+        {firstPageError && items.length > 0 ? (
           <Banner
-            message={error.message}
+            message={firstPageError.message}
             onRetry={() => {
               refresh().catch(() => undefined);
             }}
@@ -127,7 +145,7 @@ export default function FeedScreen() {
       <FlatList
         ref={listRef}
         testID="feed-list"
-        style={styles.list}
+        style={[styles.list, { opacity: loading && items.length > 0 ? 0.5 : 1 }]}
         data={items}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <ItemCard item={item} />}
@@ -153,9 +171,9 @@ export default function FeedScreen() {
         ListEmptyComponent={
           loading ? (
             <FeedSkeleton />
-          ) : error?.place === 'list' ? (
+          ) : firstPageError ? (
             <ErrorState
-              message={error.message}
+              message={firstPageError.message}
               onRetry={() => {
                 reload().catch(() => undefined);
               }}
@@ -193,7 +211,7 @@ export default function FeedScreen() {
                 testID="loaded-count"
                 style={[styles.footerText, { color: palette.textMuted, fontFamily: type.sans }]}
               >
-                {`Showing ${formatCount(items.length)} of ${formatCount(total ?? items.length)}`}
+                {footerLabel()}
               </Text>
             </View>
           )
@@ -202,7 +220,8 @@ export default function FeedScreen() {
       <FilterSheet
         visible={sheetOpen}
         filters={filters}
-        total={total}
+        total={loading ? null : total}
+        loading={loading}
         onChange={setFilters}
         onClose={() => {
           setSheetOpen(false);
@@ -244,11 +263,12 @@ function buildChips(filters: ItemFilters, setFilters: (filters: ItemFilters) => 
       },
     });
   }
-  if (hasCustomRange(filters) && filters.from && filters.to) {
+  const range = customRange(filters);
+  if (range) {
     chips.push({
       key: 'range',
       testID: 'chip-range',
-      label: `${formatItemDate(filters.from)} – ${formatItemDate(filters.to)}`,
+      label: rangeLabel(range),
       remove: () => {
         setFilters({ ...filters, from: null, to: null });
       },

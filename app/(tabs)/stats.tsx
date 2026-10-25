@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ImportanceDonut, MonthChart, SourceSplit, TopicBars } from '@/components/Charts';
 import { Banner, ErrorState, StatsSkeleton } from '@/components/StateViews';
+import { formatClock } from '@/lib/dates';
 import { formatCount } from '@/lib/format';
 import type { Stats } from '@/lib/stats';
 import { useTheme, useType } from '@/lib/theme';
@@ -13,7 +14,7 @@ export default function StatsScreen() {
   const { palette } = useTheme();
   const type = useType();
   const insets = useSafeAreaInsets();
-  const { stats, loading, refreshing, error, reload } = useStats();
+  const { stats, updatedAt, loading, refreshing, error, refresh, retry } = useStats();
 
   return (
     <ScrollView
@@ -24,7 +25,7 @@ export default function StatsScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={() => {
-            reload().catch(() => undefined);
+            refresh().catch(() => undefined);
           }}
           tintColor={palette.accent}
           colors={[palette.accent]}
@@ -41,27 +42,28 @@ export default function StatsScreen() {
         <Banner
           message={error}
           onRetry={() => {
-            reload().catch(() => undefined);
+            refresh().catch(() => undefined);
           }}
         />
       ) : null}
       {loading && !stats ? <StatsSkeleton /> : null}
-      {error && !stats ? (
+      {!loading && error && !stats ? (
         <ErrorState
           title="Couldn’t load stats"
           message={error}
           onRetry={() => {
-            reload().catch(() => undefined);
+            retry().catch(() => undefined);
           }}
         />
       ) : null}
-      {stats ? <StatsBody stats={stats} /> : null}
+      {stats ? <StatsBody stats={stats} updatedAt={updatedAt} /> : null}
     </ScrollView>
   );
 }
 
-function StatsBody({ stats }: { stats: Stats }) {
+function StatsBody({ stats, updatedAt }: { stats: Stats; updatedAt: Date | null }) {
   const { palette } = useTheme();
+  const type = useType();
   return (
     <View style={styles.body}>
       <View style={styles.tiles}>
@@ -92,7 +94,11 @@ function StatsBody({ stats }: { stats: Stats }) {
       >
         <TopicBars stats={stats} />
       </Panel>
-      <Text style={[styles.footnote, { color: palette.textMuted }]}>Pulled from Supabase just now.</Text>
+      {updatedAt ? (
+        <Text testID="stats-updated" style={[styles.footnote, { color: palette.textMuted, fontFamily: type.sans }]}>
+          {`Counted from Supabase at ${formatClock(updatedAt)}`}
+        </Text>
+      ) : null}
     </View>
   );
 }

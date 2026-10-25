@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/Buttons';
 import { useTheme, useType } from '@/lib/theme';
+
+const useNativeDriver = Platform.OS !== 'web';
 
 function usePulse(): Animated.Value {
   const [opacity] = useState(() => new Animated.Value(0.45));
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: false }),
-        Animated.timing(opacity, { toValue: 0.45, duration: 800, useNativeDriver: false }),
+        Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver }),
+        Animated.timing(opacity, { toValue: 0.45, duration: 800, useNativeDriver }),
       ]),
     );
     animation.start();
@@ -56,6 +58,22 @@ export function StatsSkeleton() {
       <Animated.View style={[styles.panel, { backgroundColor: palette.skeleton, opacity }]} />
       <Animated.View style={[styles.panel, { backgroundColor: palette.skeleton, opacity }]} />
     </View>
+  );
+}
+
+export function DetailSkeleton() {
+  const { palette } = useTheme();
+  const opacity = usePulse();
+  const bar = { backgroundColor: palette.skeleton };
+  return (
+    <Animated.View testID="detail-skeleton" style={[styles.detail, { opacity }]}>
+      <View style={[styles.detailPill, bar]} />
+      <View style={[styles.detailTitle, bar]} />
+      <View style={[styles.detailTitleShort, bar]} />
+      <View style={[styles.detailLine, bar, { marginTop: 18 }]} />
+      <View style={[styles.detailLine, bar]} />
+      <View style={[styles.detailLineShort, bar]} />
+    </Animated.View>
   );
 }
 
@@ -108,9 +126,11 @@ export function Banner({ message, onRetry }: BannerProps) {
   const { palette } = useTheme();
   const type = useType();
   return (
-    <View style={[styles.banner, { backgroundColor: palette.card, borderColor: palette.danger }]}>
+    <View testID="banner" style={[styles.banner, { backgroundColor: palette.card, borderColor: palette.danger }]}>
       <Text style={[styles.bannerText, { color: palette.text, fontFamily: type.sans }]}>{message}</Text>
       <Text
+        testID="banner-retry"
+        accessibilityRole="button"
         onPress={onRetry}
         style={[styles.bannerAction, { color: palette.accent, fontFamily: type.sansSemibold }]}
       >
@@ -162,6 +182,35 @@ const styles = StyleSheet.create({
   panel: {
     height: 180,
     borderRadius: 16,
+  },
+  detail: {
+    gap: 12,
+    paddingTop: 8,
+  },
+  detailPill: {
+    width: 120,
+    height: 20,
+    borderRadius: 10,
+  },
+  detailTitle: {
+    width: '92%',
+    height: 30,
+    borderRadius: 8,
+  },
+  detailTitleShort: {
+    width: '58%',
+    height: 30,
+    borderRadius: 8,
+  },
+  detailLine: {
+    width: '100%',
+    height: 14,
+    borderRadius: 7,
+  },
+  detailLineShort: {
+    width: '70%',
+    height: 14,
+    borderRadius: 7,
   },
   state: {
     paddingVertical: 48,
