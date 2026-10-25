@@ -1,4 +1,4 @@
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
 
 type IconProps = {
   color: string;
@@ -92,6 +92,63 @@ export function SportsIcon({ color, size = 14 }: IconProps) {
         stroke={color}
         strokeWidth={1.5}
         strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+export function HealthIcon({ color, size = 14 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 19.2s-6.4-3.9-6.4-8.2a3.5 3.5 0 0 1 6.4-2 3.5 3.5 0 0 1 6.4 2c0 4.3-6.4 8.2-6.4 8.2z"
+        stroke={color}
+        strokeWidth={1.75}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function MusicIcon({ color, size = 14 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M9 17.4V6.2l9-1.8v8.4" stroke={color} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx="6.8" cy="17.4" r="2.2" stroke={color} strokeWidth={1.75} />
+      <Circle cx="15.8" cy="14.8" r="2.2" stroke={color} strokeWidth={1.75} />
+    </Svg>
+  );
+}
+
+export function MoviesIcon({ color, size = 14 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect x="3.5" y="6" width="17" height="12" rx="2" stroke={color} strokeWidth={1.75} />
+      <Path d="M10.2 9.4v5.2l4.8-2.6-4.8-2.6z" fill={color} />
+    </Svg>
+  );
+}
+
+export function ScienceIcon({ color, size = 14 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Ellipse cx="12" cy="12" rx="8" ry="3.2" stroke={color} strokeWidth={1.5} />
+      <Ellipse cx="12" cy="12" rx="8" ry="3.2" stroke={color} strokeWidth={1.5} transform="rotate(60 12 12)" />
+      <Ellipse cx="12" cy="12" rx="8" ry="3.2" stroke={color} strokeWidth={1.5} transform="rotate(120 12 12)" />
+      <Circle cx="12" cy="12" r="1.5" fill={color} />
+    </Svg>
+  );
+}
+
+export function LifestyleIcon({ color, size = 14 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4.5 11.2L12 5l7.5 6.2M7.2 10.6V19h9.6v-8.4"
+        stroke={color}
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </Svg>
   );

@@ -1,12 +1,12 @@
 import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type PressableProps } from 'react-native';
 
-import { SportsIcon } from '@/components/Icons';
+import { TopicGlyph } from '@/components/TopicGlyph';
 import { formatMonthKey } from '@/lib/dates';
 import { formatCount, formatEntries, formatPercent, segmentSummary } from '@/lib/format';
 import type { MonthBucket, Stats } from '@/lib/stats';
 import { useTheme, useType } from '@/lib/theme';
-import { isSports } from '@/lib/topics';
+import { topicColorKey } from '@/lib/topics';
 import type { Source } from '@/lib/types';
 
 const SLOT = 44;
@@ -395,8 +395,9 @@ export function TopicBars({
         }
         const isSelected = selected === topic.topic;
         const summary = segmentSummary(topic.topic, topic.count, stats.total);
-        const sports = isSports(topic.topic);
-        const tone = sports ? palette.sports : palette.accent;
+        const key = topicColorKey(topic.topic);
+        const colors = key ? palette.topic[key] : null;
+        const tone = colors ? colors.fg : palette.accent;
         return (
           <Holdable
             key={topic.topic}
@@ -416,15 +417,15 @@ export function TopicBars({
               {
                 opacity: pressed ? 0.72 : 1,
                 backgroundColor: isSelected ? palette.chip : 'transparent',
-                borderColor: isSelected ? palette.accent : 'transparent',
+                borderColor: isSelected ? tone : 'transparent',
               },
             ]}
           >
             <View style={styles.topicMeta}>
-              {sports ? <SportsIcon color={palette.sports} size={14} /> : null}
+              <TopicGlyph topic={topic.topic} color={tone} size={14} />
               <Text
                 numberOfLines={1}
-                style={[styles.topicName, { color: sports ? palette.sports : palette.text, fontFamily: type.sansMedium }]}
+                style={[styles.topicName, { color: colors ? colors.fg : palette.text, fontFamily: type.sansMedium }]}
               >
                 {topic.topic}
               </Text>

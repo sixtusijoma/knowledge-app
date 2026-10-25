@@ -1,20 +1,21 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { SportsIcon } from '@/components/Icons';
+import { TopicGlyph } from '@/components/TopicGlyph';
 import { useTheme, useType } from '@/lib/theme';
-import { isSports } from '@/lib/topics';
+import { topicColorKey } from '@/lib/topics';
 
 export function TopicChip({ topic, testID }: { topic: string; testID?: string }) {
   const { palette } = useTheme();
   const type = useType();
-  const sports = isSports(topic);
+  const key = topicColorKey(topic);
+  const colors = key ? palette.topic[key] : null;
   return (
     <View
       testID={testID}
-      style={[styles.chip, { backgroundColor: sports ? palette.sportsBg : palette.chip }]}
+      style={[styles.chip, { backgroundColor: colors ? colors.bg : palette.chip }]}
     >
-      {sports ? <SportsIcon color={palette.sports} size={12} /> : null}
-      <Text style={[styles.text, { color: sports ? palette.sports : palette.chipText, fontFamily: type.sansMedium }]}>
+      <TopicGlyph topic={topic} color={colors ? colors.fg : palette.chipText} size={12} />
+      <Text style={[styles.text, { color: colors ? colors.fg : palette.chipText, fontFamily: type.sansMedium }]}>
         {topic}
       </Text>
     </View>

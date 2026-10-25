@@ -14,12 +14,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/Buttons';
-import { SportsIcon } from '@/components/Icons';
+import { TopicGlyph } from '@/components/TopicGlyph';
 import { availableYears, isMonthSelectable, MONTH_SHORT, monthKey } from '@/lib/dates';
 import { activeFilterCount, customRange, EMPTY_FILTERS, rangeHint } from '@/lib/filters';
 import { formatEntries } from '@/lib/format';
 import { useTheme, useType } from '@/lib/theme';
-import { isSports, TOPICS } from '@/lib/topics';
+import { topicColorKey, TOPICS } from '@/lib/topics';
 import type { ItemFilters, SourceFilter } from '@/lib/types';
 import { usePresentTopics } from '@/lib/use-topics';
 
@@ -142,18 +142,16 @@ export function FilterSheet({ visible, filters, total, loading, onChange, onClos
               <View testID="filter-topics" style={styles.wrap}>
                 {listedTopics.map((topic) => {
                   const selected = filters.topics.includes(topic);
-                  const sports = isSports(topic);
+                  const key = topicColorKey(topic);
+                  const colors = key ? palette.topic[key] : undefined;
+                  const mark = colors ? (selected ? palette.topicOn : colors.fg) : palette.chipText;
                   return (
                     <Pill
                       key={topic}
                       testID={`filter-topic-${topic}`}
                       label={topic}
-                      tone={sports ? 'sports' : 'accent'}
-                      icon={
-                        sports ? (
-                          <SportsIcon color={selected ? palette.accentText : palette.sports} size={14} />
-                        ) : undefined
-                      }
+                      colors={colors}
+                      icon={<TopicGlyph topic={topic} color={mark} size={14} />}
                       selected={selected}
                       onPress={() => {
                         const topics = selected
@@ -260,7 +258,7 @@ type PillProps = {
   testID: string;
   disabled?: boolean;
   variant?: 'choice' | 'tab';
-  tone?: 'accent' | 'sports';
+  colors?: { fg: string; bg: string };
   icon?: ReactNode;
   style?: StyleProp<ViewStyle>;
 };
@@ -272,21 +270,21 @@ function Pill({
   testID,
   disabled = false,
   variant = 'choice',
-  tone = 'accent',
+  colors: topicColors,
   icon,
   style,
 }: PillProps) {
   const { palette } = useTheme();
   const type = useType();
   let colors = { background: palette.chip, border: palette.border, text: palette.chipText };
-  if (selected && variant === 'choice' && tone === 'sports') {
-    colors = { background: palette.sports, border: palette.sports, text: palette.accentText };
+  if (selected && variant === 'choice' && topicColors) {
+    colors = { background: topicColors.fg, border: topicColors.fg, text: palette.topicOn };
+  } else if (topicColors) {
+    colors = { background: topicColors.bg, border: palette.border, text: topicColors.fg };
   } else if (selected && variant === 'choice') {
     colors = { background: palette.accent, border: palette.accent, text: palette.accentText };
   } else if (selected) {
     colors = { background: palette.text, border: palette.text, text: palette.bg };
-  } else if (tone === 'sports') {
-    colors = { background: palette.sportsBg, border: palette.border, text: palette.sports };
   } else if (variant === 'tab') {
     colors = { background: 'transparent', border: palette.border, text: palette.text };
   }

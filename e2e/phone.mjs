@@ -10,22 +10,28 @@ const ANON =
 const REST = 'https://your-project.supabase.co/rest/v1/items';
 const RPC = 'https://your-project.supabase.co/rest/v1/rpc/activity_buckets';
 const TOPICS = [
-  'AI/Agents',
-  'Coding',
-  'Cursor',
-  'Grok Bot',
-  'X/Subscriptions',
-  'Finance/Stocks',
-  'Crypto',
-  'Career',
-  'Game Dev',
-  'Security',
-  'Humor/Culture',
+  'Sports',
   'Streamers/Drama',
   'News',
-  'Sports',
+  'Humor/Culture',
+  'AI/Agents',
+  'Crypto',
+  'Finance/Stocks',
+  'X/Subscriptions',
+  'Game Dev',
+  'Coding',
+  'Security',
+  'Grok Bot',
+  'Career',
+  'Cursor',
+  'Health & Fitness',
+  'Music',
+  'Movies/TV/Anime',
+  'Science & Tech',
+  'Lifestyle',
   'Other',
 ];
+const COLORED = ['Sports', 'Health & Fitness', 'Music', 'Movies/TV/Anime', 'Science & Tech', 'Lifestyle', 'Other'];
 
 const iphone = devices['iPhone 13'];
 const phone = {
@@ -38,6 +44,7 @@ const phone = {
 
 const results = [];
 let current = null;
+let stackedTopic = 'Sports';
 
 function assert(condition, message) {
   if (!condition) {
@@ -177,13 +184,21 @@ function monthEnd(month) {
 }
 
 async function clearFeedChips(page) {
-  const ids = ['chip-source', 'chip-topic-Sports', 'chip-month', 'chip-range'];
+  const ids = ['chip-source', 'chip-month', 'chip-range'];
   for (const id of ids) {
     const chip = page.getByTestId(id);
     if ((await chip.count()) > 0 && (await chip.isVisible())) {
       await chip.click();
       await page.waitForTimeout(150);
     }
+  }
+  for (let guard = 0; guard < 8; guard += 1) {
+    const topic = page.locator('[data-testid^="chip-topic-"]').first();
+    if ((await topic.count()) === 0 || !(await topic.isVisible())) {
+      break;
+    }
+    await topic.click();
+    await page.waitForTimeout(150);
   }
   await waitForCount(page);
 }
@@ -202,7 +217,32 @@ async function openFeed(page) {
   await waitForCount(page);
 }
 
+async function presentTopics() {
+  const counts = await Promise.all(
+    TOPICS.map(async (topic) => {
+      const count = await restCount([['topics', `ov.{"${topic}"}`]]);
+      return count > 0 ? topic : null;
+    }),
+  );
+  return counts.filter((topic) => topic !== null);
+}
+
+async function filterTopicNames(page) {
+  return page.locator('[data-testid^="filter-topic-"]').evaluateAll((nodes) => {
+    return nodes.map((node) => (node.getAttribute('data-testid') ?? '').replace('filter-topic-', ''));
+  });
+}
+
+async function dismissFilters(page) {
+  const sheet = page.getByTestId('filter-sheet');
+  if ((await sheet.count()) > 0 && (await sheet.isVisible())) {
+    await page.getByTestId('filter-done').click();
+    await sheet.waitFor({ state: 'hidden', timeout: 5000 });
+  }
+}
+
 async function openStats(page) {
+  await dismissFilters(page);
   await page.getByRole('tab', { name: 'Stats' }).click();
   await page.getByTestId('stats-screen').waitFor({ timeout: 15000 });
   await page.getByTestId('stats-total').waitFor({ timeout: 90000 });
@@ -295,42 +335,49 @@ await check('feed count matches Supabase', async () => {
 });
 
 await check('filters hide empty topics and have no importance', async () => {
-  await page.getByTestId('filter-button').click();
-  await page.getByTestId('filter-sheet').waitFor();
-  await page.waitForFunction(() => !document.querySelector('[data-testid="filter-topics-loading"]'), undefined, {
-    timeout: 30000,
-  });
-  const sheet = await page.getByTestId('filter-sheet').innerText();
-  assert(!/importance/i.test(sheet), 'importance is still in the filter sheet');
-  assert((await page.locator('[data-testid*="importance"]').count()) === 0, 'importance test id');
-  const shown = await page.locator('[data-testid^="filter-topic-"]').evaluateAll((nodes) => {
-    return nodes.map((node) => (node.getAttribute('data-testid') ?? '').replace('filter-topic-', ''));
-  });
-  const expected = [];
-  for (const topic of TOPICS) {
-    const count = await restCount([['topics', `ov.{"${topic}"}`]]);
-    if (count > 0) {
-      expected.push(topic);
-    }
-  }
-  assert(shown.join('|') === expected.join('|'), `shown ${shown.join('|')} expected ${expected.join('|')}`);
-  await shot(page, 'filters_dark');
-  let note = 'Sports is hidden because it has no rows';
-  if (expected.includes('Sports')) {
-    await tap(page.getByTestId('filter-topic-Sports'));
-    await page.waitForFunction(() => {
-      const node = document.querySelector('[data-testid="result-count"]');
-      return node && !/Loading/.test(node.textContent || '') && /\d/.test(node.textContent || '');
+  try {
+    const expectedPromise = presentTopics();
+    await page.getByTestId('filter-button').click();
+    await page.getByTestId('filter-sheet').waitFor();
+    await page.waitForFunction(() => !document.querySelector('[data-testid="filter-topics-loading"]'), undefined, {
+      timeout: 30000,
     });
-    const live = num(await textOf(page.getByTestId('result-count')));
-    const sports = await restCount([['topics', 'ov.{"Sports"}']]);
-    assert(live === sports, `sports ui ${live} rest ${sports}`);
-    note = `Sports ${sports}`;
-    await page.getByTestId('filter-clear').click();
+    const sheet = await page.getByTestId('filter-sheet').innerText();
+    assert(!/importance/i.test(sheet), 'importance is still in the filter sheet');
+    assert((await page.locator('[data-testid*="importance"]').count()) === 0, 'importance test id');
+    let shown = await filterTopicNames(page);
+    let expected = await expectedPromise;
+    if (shown.join('|') !== expected.join('|')) {
+      await dismissFilters(page);
+      await openFeed(page);
+      const again = presentTopics();
+      await page.getByTestId('filter-button').click();
+      await page.getByTestId('filter-sheet').waitFor();
+      await page.waitForFunction(() => !document.querySelector('[data-testid="filter-topics-loading"]'), undefined, {
+        timeout: 30000,
+      });
+      shown = await filterTopicNames(page);
+      expected = await again;
+    }
+    assert(shown.join('|') === expected.join('|'), `shown ${shown.join('|')} expected ${expected.join('|')}`);
+    await shot(page, 'filters_dark');
+    let note = 'Sports is hidden because it has no rows';
+    if (expected.includes('Sports')) {
+      await tap(page.getByTestId('filter-topic-Sports'));
+      await page.waitForFunction(() => {
+        const node = document.querySelector('[data-testid="result-count"]');
+        return node && !/Loading/.test(node.textContent || '') && /\d/.test(node.textContent || '');
+      });
+      const live = num(await textOf(page.getByTestId('result-count')));
+      const sports = await restCount([['topics', 'ov.{"Sports"}']]);
+      assert(live === sports, `sports ui ${live} rest ${sports}`);
+      note = `Sports ${sports}`;
+      await page.getByTestId('filter-clear').click();
+    }
+    return `${shown.length} topics, ${note}`;
+  } finally {
+    await dismissFilters(page).catch(() => undefined);
   }
-  await page.getByTestId('filter-done').click();
-  await page.getByTestId('filter-sheet').waitFor({ state: 'hidden', timeout: 5000 });
-  return `${shown.length} topics, ${note}`;
 });
 
 await check('detail has no importance', async () => {
@@ -510,22 +557,46 @@ await check('legend hides a series and a tap opens that day', async () => {
   return `${day}: ${tip}`;
 });
 
-await check('Sports is on the topic chart when it has rows', async () => {
-  const rest = await restCount([['topics', 'ov.{"Sports"}']]);
+await check('colored topics match live counts or stay hidden', async () => {
   await tap(page.getByRole('tab', { name: 'Stats' }));
   await page.getByTestId('stats-total').waitFor({ timeout: 20000 });
   if ((await page.getByTestId('stats-clear').count()) > 0) {
     await tap(page.getByTestId('stats-clear'));
     await page.waitForTimeout(200);
   }
-  if (rest === 0) {
-    assert((await page.getByTestId('stats-topic-Sports').count()) === 0, 'Sports bar with zero rows');
-    return 'Sports hidden';
+  const notes = [];
+  let sample = null;
+  let sampleCount = 0;
+  for (const topic of COLORED) {
+    const rest = await restCount([['topics', `ov.{"${topic}"}`]]);
+    const bar = page.getByTestId(`stats-topic-${topic}`);
+    if (rest === 0) {
+      assert((await bar.count()) === 0, `${topic} bar with zero rows`);
+      notes.push(`${topic} hidden`);
+      continue;
+    }
+    await reveal(bar);
+    const shown = num(await textOf(bar));
+    assert(shown === rest, `${topic} chart ${shown} rest ${rest}`);
+    notes.push(`${topic} ${shown}`);
+    if (!sample) {
+      sample = topic;
+      sampleCount = rest;
+    }
   }
-  await reveal(page.getByTestId('stats-topic-Sports'));
-  const sports = num(await textOf(page.getByTestId('stats-topic-Sports')));
-  assert(sports === rest, `sports chart ${sports} rest ${rest}`);
-  return `${sports} Sports`;
+  if (sample) {
+    await page.getByTestId(`stats-topic-bar-${sample}`).click();
+    await page.waitForTimeout(150);
+    assert((await totalOf(page)) === sampleCount, `${sample} filter ${await totalOf(page)} rest ${sampleCount}`);
+    await page.getByTestId(`stats-topic-bar-${sample}`).click();
+    await page.waitForTimeout(150);
+    assert((await page.getByTestId('stats-chip-topic').count()) === 0, `${sample} stayed selected`);
+  }
+  if ((await page.getByTestId('stats-topic-Other').count()) > 0) {
+    await reveal(page.getByTestId('stats-topic-Other'));
+    await shot(page, 'topics_dark');
+  }
+  return notes.join(', ');
 });
 
 await check('a source tap filters the totals and a second tap clears it', async () => {
@@ -563,15 +634,25 @@ await check('a source tap filters the totals and a second tap clears it', async 
 
 await check('source, topic, and month selections stack', async () => {
   await page.getByTestId('stats-source-grok').click();
-  await reveal(page.getByTestId('stats-topic-bar-Sports'));
-  await page.getByTestId('stats-topic-bar-Sports').click();
+  if ((await page.getByTestId('stats-topic-bar-Sports').count()) === 0) {
+    const names = await page.locator('[data-testid^="stats-topic-bar-"]').evaluateAll((nodes) => {
+      return nodes.map((node) => (node.getAttribute('data-testid') ?? '').replace('stats-topic-bar-', ''));
+    });
+    assert(names.length > 0, 'no topic bars');
+    stackedTopic = names[0];
+  } else {
+    stackedTopic = 'Sports';
+  }
+  await reveal(page.getByTestId(`stats-topic-bar-${stackedTopic}`));
+  await page.getByTestId(`stats-topic-bar-${stackedTopic}`).click();
   await page.waitForTimeout(150);
   const stacked = await restCount([
     ['source', 'eq.Grok Chat'],
-    ['topics', 'ov.{"Sports"}'],
+    ['topics', `ov.{"${stackedTopic}"}`],
   ]);
   const tip = await textOf(page.getByTestId('stats-tooltip'));
-  assert(/Sports · [\d,]+ entr(?:y|ies) · [\d.]+%/.test(tip), tip);
+  assert(tip.startsWith(`${stackedTopic} · `), tip);
+  assert(/[\d,]+ entr(?:y|ies) · [\d.]+%/.test(tip), tip);
   assert((await totalOf(page)) === stacked, `stacked ${await totalOf(page)} rest ${stacked}`);
   assert((await page.getByTestId('stats-chip-source').count()) === 1, 'source chip');
   assert((await page.getByTestId('stats-chip-topic').count()) === 1, 'topic chip');
@@ -585,7 +666,7 @@ await check('source, topic, and month selections stack', async () => {
   await page.waitForTimeout(150);
   const rest = await restCount([
     ['source', 'eq.Grok Chat'],
-    ['topics', 'ov.{"Sports"}'],
+    ['topics', `ov.{"${stackedTopic}"}`],
     ['item_date', `gte.${month}-01`],
     ['item_date', `lte.${monthEnd(month)}`],
   ]);
@@ -602,7 +683,7 @@ await check('See entries opens the feed with the same filters', async () => {
   const expected = await totalOf(page);
   await page.getByTestId('stats-see-entries').click();
   await page.getByTestId('chip-source').waitFor({ state: 'visible', timeout: 15000 });
-  await page.getByTestId('chip-topic-Sports').waitFor({ state: 'visible' });
+  await page.getByTestId(`chip-topic-${stackedTopic}`).waitFor({ state: 'visible' });
   await page.getByTestId('chip-month').waitFor({ state: 'visible' });
   await page.waitForFunction((count) => {
     const node = document.querySelector('[data-testid="result-count"]');
@@ -735,8 +816,14 @@ await check('short recording of stacked chart filters', async () => {
   await reveal(videoPage.getByTestId('stats-source-grok'));
   await videoPage.getByTestId('stats-source-grok').click();
   await videoPage.waitForTimeout(500);
-  await reveal(videoPage.getByTestId('stats-topic-bar-Sports'));
-  await videoPage.getByTestId('stats-topic-bar-Sports').click();
+  const topicBars = await videoPage.locator('[data-testid^="stats-topic-bar-"]').evaluateAll((nodes) => {
+    return nodes.map((node) => (node.getAttribute('data-testid') ?? '').replace('stats-topic-bar-', ''));
+  });
+  const videoTopic = topicBars.includes('Sports') ? 'Sports' : topicBars[0];
+  if (videoTopic) {
+    await reveal(videoPage.getByTestId(`stats-topic-bar-${videoTopic}`));
+    await videoPage.getByTestId(`stats-topic-bar-${videoTopic}`).click();
+  }
   await videoPage.waitForTimeout(600);
   const months = await videoPage.locator('[data-testid^="stats-month-20"]').evaluateAll((nodes) => {
     return nodes.map((node) => (node.getAttribute('data-testid') ?? '').replace('stats-month-', ''));
