@@ -156,6 +156,38 @@ async function shot(page, name) {
   await page.screenshot({ path: `${OUT}/${name}.png` });
 }
 
+function encodeMp4(webm, mp4) {
+  const encoded = spawnSync(
+    'ffmpeg',
+    ['-y', '-i', webm, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', mp4],
+    { encoding: 'utf8' },
+  );
+  assert(encoded.status === 0, encoded.stderr?.slice(-300) || 'ffmpeg failed');
+  return mp4;
+}
+
+async function totalOf(page) {
+  return num(await textOf(page.getByTestId('stats-total')));
+}
+
+function monthEnd(month) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const last = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  return `${month}-${String(last).padStart(2, '0')}`;
+}
+
+async function clearFeedChips(page) {
+  const ids = ['chip-source', 'chip-topic-Sports', 'chip-month', 'chip-range'];
+  for (const id of ids) {
+    const chip = page.getByTestId(id);
+    if ((await chip.count()) > 0 && (await chip.isVisible())) {
+      await chip.click();
+      await page.waitForTimeout(150);
+    }
+  }
+  await waitForCount(page);
+}
+
 async function waitForCount(page) {
   await page.waitForFunction(() => {
     const node = document.querySelector('[data-testid="result-count"]');
@@ -183,6 +215,21 @@ async function activityReady(page) {
     const ready = document.querySelector('[data-testid="stats-activity-bookmarks"]');
     return !loading && ready;
   }, { timeout: 40000 });
+}
+
+async function longPress(page, testId) {
+  const box = await page.getByTestId(testId).boundingBox();
+  assert(box, testId);
+  const x = box.x + box.width / 2;
+  const y = box.y + Math.min(box.height / 2, box.y + box.height - 8);
+  const client = await page.context().newCDPSession(page);
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x, y, id: 1 }],
+  });
+  await page.waitForTimeout(700);
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await client.detach();
 }
 
 async function drag(page, testId, distance) {
@@ -481,12 +528,122 @@ await check('Sports is on the topic chart when it has rows', async () => {
   return `${sports} Sports`;
 });
 
+await check('a source tap filters the totals and a second tap clears it', async () => {
+  if ((await page.getByTestId('stats-clear').count()) > 0) {
+    await page.getByTestId('stats-clear').click();
+    await page.waitForTimeout(150);
+  }
+  const library = await totalOf(page);
+  const restAll = await restCount([]);
+  const restGrok = await restCount([['source', 'eq.Grok Chat']]);
+  const restX = await restCount([['source', 'eq.X Bookmark']]);
+  assert(library === restAll, `library ${library} rest ${restAll}`);
+  await reveal(page.getByTestId('stats-source-x'));
+  await longPress(page, 'stats-source-x');
+  const held = await textOf(page.getByTestId('stats-tooltip'));
+  assert(/X bookmarks · [\d,]+ entries · [\d.]+%/.test(held), held);
+  assert((await page.getByTestId('stats-chip-source').count()) === 0, 'a long press selected the source');
+  assert((await totalOf(page)) === library, 'a long press changed the total');
+  await page.getByTestId('stats-source-grok').click();
+  await page.waitForTimeout(150);
+  const tip = await textOf(page.getByTestId('stats-tooltip'));
+  const shown = /Grok chats · ([\d,]+) entries · [\d.]+%/.exec(tip);
+  assert(shown, tip);
+  assert(num(shown[1]) === restGrok, `tooltip ${shown[1]} rest ${restGrok}`);
+  assert((await totalOf(page)) === restGrok, `total ${await totalOf(page)} rest ${restGrok}`);
+  assert((await page.getByTestId('stats-x').innerText()).replace(/\D/g, '') === '0', 'x tile stayed');
+  const openX = num(await textOf(page.getByTestId('stats-source-x-count')));
+  assert(openX === restX, `source chart closed ${openX} rest ${restX}`);
+  await page.getByTestId('stats-source-grok').click();
+  await page.waitForTimeout(150);
+  assert((await page.getByTestId('stats-chip-source').count()) === 0, 'source chip stayed');
+  assert((await totalOf(page)) === restAll, 'unselect did not restore the total');
+  return `long-press tooltip, then ${restGrok} chats`;
+});
+
+await check('source, topic, and month selections stack', async () => {
+  await page.getByTestId('stats-source-grok').click();
+  await reveal(page.getByTestId('stats-topic-bar-Sports'));
+  await page.getByTestId('stats-topic-bar-Sports').click();
+  await page.waitForTimeout(150);
+  const stacked = await restCount([
+    ['source', 'eq.Grok Chat'],
+    ['topics', 'ov.{"Sports"}'],
+  ]);
+  const tip = await textOf(page.getByTestId('stats-tooltip'));
+  assert(/Sports · [\d,]+ entr(?:y|ies) · [\d.]+%/.test(tip), tip);
+  assert((await totalOf(page)) === stacked, `stacked ${await totalOf(page)} rest ${stacked}`);
+  assert((await page.getByTestId('stats-chip-source').count()) === 1, 'source chip');
+  assert((await page.getByTestId('stats-chip-topic').count()) === 1, 'topic chip');
+  const months = await page.locator('[data-testid^="stats-month-20"]').evaluateAll((nodes) => {
+    return nodes.map((node) => (node.getAttribute('data-testid') ?? '').replace('stats-month-', ''));
+  });
+  assert(months.length > 0, 'no month bars');
+  const month = months[months.length - 1];
+  await reveal(page.getByTestId(`stats-month-${month}`));
+  await page.getByTestId(`stats-month-${month}`).click();
+  await page.waitForTimeout(150);
+  const rest = await restCount([
+    ['source', 'eq.Grok Chat'],
+    ['topics', 'ov.{"Sports"}'],
+    ['item_date', `gte.${month}-01`],
+    ['item_date', `lte.${monthEnd(month)}`],
+  ]);
+  const monthTip = await textOf(page.getByTestId('stats-tooltip'));
+  assert(/[\d,]+ entr(?:y|ies) · [\d.]+%/.test(monthTip), monthTip);
+  assert((await totalOf(page)) === rest, `month stack ${await totalOf(page)} rest ${rest}`);
+  assert((await page.getByTestId('stats-chip-month').count()) === 1, 'month chip');
+  await reveal(page.getByTestId('stats-total'));
+  await shot(page, 'stats_crossfilter_dark');
+  return `${month}: ${rest}`;
+});
+
+await check('See entries opens the feed with the same filters', async () => {
+  const expected = await totalOf(page);
+  await page.getByTestId('stats-see-entries').click();
+  await page.getByTestId('chip-source').waitFor({ state: 'visible', timeout: 15000 });
+  await page.getByTestId('chip-topic-Sports').waitFor({ state: 'visible' });
+  await page.getByTestId('chip-month').waitFor({ state: 'visible' });
+  await page.waitForFunction((count) => {
+    const node = document.querySelector('[data-testid="result-count"]');
+    const text = node?.textContent ?? '';
+    if (/Loading|Not loaded/.test(text)) {
+      return false;
+    }
+    const found = text.replace(/,/g, '').match(/(\d+)/);
+    return found !== null && Number(found[1]) === count;
+  }, expected, { timeout: 30000 });
+  const ui = num(await textOf(page.getByTestId('result-count')));
+  assert(ui === expected, `feed ${ui} stats ${expected}`);
+  await shot(page, 'feed_from_stats_dark');
+  return `${ui} entries`;
+});
+
+await check('a custom from and to filters every total', async () => {
+  await page.getByRole('tab', { name: 'Stats' }).click();
+  await page.getByTestId('stats-clear').click();
+  await page.waitForTimeout(150);
+  await page.getByTestId('stats-range-custom').click();
+  await page.getByTestId('stats-from').fill('2026-10-01');
+  await page.getByTestId('stats-to').fill('2026-10-07');
+  await page.waitForTimeout(250);
+  const ui = await totalOf(page);
+  const rest = await restCount([
+    ['item_date', 'gte.2026-10-01'],
+    ['item_date', 'lte.2026-10-07'],
+  ]);
+  assert(ui === rest, `custom ${ui} rest ${rest}`);
+  const label = await page.getByTestId('stats-range-label').getAttribute('aria-label');
+  assert(label === '2026-10-01..2026-10-07', label);
+  await shot(page, 'stats_custom_dark');
+  await page.getByTestId('stats-clear').click();
+  await page.waitForTimeout(150);
+  return `${ui} entries`;
+});
+
 await check('light theme still has every screen', async () => {
   await page.getByRole('tab', { name: 'Feed' }).click();
-  if ((await page.getByTestId('chip-range').count()) > 0) {
-    await page.getByTestId('chip-range').click();
-    await waitForCount(page);
-  }
+  await clearFeedChips(page);
   await page.getByTestId('theme-toggle').click();
   await page.waitForTimeout(300);
   await shot(page, 'feed_light');
@@ -563,15 +720,41 @@ await check('short recording of the activity chart and theme', async () => {
   await videoPage.waitForTimeout(1200);
   const video = videoPage.video();
   await videoContext.close();
-  const webm = await video.path();
-  const mp4 = `${OUT}/activity-theme.mp4`;
-  const encoded = spawnSync(
-    'ffmpeg',
-    ['-y', '-i', webm, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', mp4],
-    { encoding: 'utf8' },
-  );
-  assert(encoded.status === 0, encoded.stderr?.slice(-300) || 'ffmpeg failed');
-  return mp4;
+  return encodeMp4(await video.path(), `${OUT}/activity-theme.mp4`);
+});
+
+await check('short recording of stacked chart filters', async () => {
+  const videoContext = await browser.newContext({
+    ...phone,
+    recordVideo: { dir: '/tmp/pw/phone-video', size: { width: 390, height: 844 } },
+  });
+  const videoPage = await videoContext.newPage();
+  current = videoPage;
+  await openFeed(videoPage);
+  await openStats(videoPage);
+  await reveal(videoPage.getByTestId('stats-source-grok'));
+  await videoPage.getByTestId('stats-source-grok').click();
+  await videoPage.waitForTimeout(500);
+  await reveal(videoPage.getByTestId('stats-topic-bar-Sports'));
+  await videoPage.getByTestId('stats-topic-bar-Sports').click();
+  await videoPage.waitForTimeout(600);
+  const months = await videoPage.locator('[data-testid^="stats-month-20"]').evaluateAll((nodes) => {
+    return nodes.map((node) => (node.getAttribute('data-testid') ?? '').replace('stats-month-', ''));
+  });
+  if (months.length > 0) {
+    const month = months[months.length - 1];
+    await reveal(videoPage.getByTestId(`stats-month-${month}`));
+    await videoPage.getByTestId(`stats-month-${month}`).click();
+    await videoPage.waitForTimeout(500);
+  }
+  await reveal(videoPage.getByTestId('stats-total'));
+  await videoPage.waitForTimeout(600);
+  await videoPage.getByTestId('stats-see-entries').click();
+  await videoPage.getByTestId('chip-source').waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
+  await videoPage.waitForTimeout(900);
+  const video = videoPage.video();
+  await videoContext.close();
+  return encodeMp4(await video.path(), `${OUT}/stats-crossfilter.mp4`);
 });
 
 await browser.close();
