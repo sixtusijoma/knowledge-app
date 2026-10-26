@@ -11,6 +11,10 @@ const ITEM_COLUMNS =
 
 const STAT_PAGE = 1000;
 const MAX_STAT_PAGES = 40;
+// PostgREST returns at most this many rows from one call. Activity buckets are
+// ordered oldest first, so a single page stops the Day chart before the latest dates.
+const ACTIVITY_PAGE = 1000;
+const MAX_ACTIVITY_PAGES = 40;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const seenItems = new Map<string, Item>();
@@ -124,24 +128,35 @@ export async function fetchActivity(args: {
   source: Source | null;
   topic: string | null;
 }): Promise<ActivityBucket[]> {
-  const { data, error } = await supabase.rpc('activity_buckets', {
-    p_unit: args.unit,
-    p_from: args.from,
-    p_to: args.to,
-    p_source: args.source,
-    p_topic: args.topic,
-  });
-  if (error) {
-    if (/schema cache|could not find the function/i.test(error.message)) {
-      throw new Error('Activity counts are not available until activity_buckets is on the database.');
+  const buckets: ActivityBucket[] = [];
+  for (let page = 0; page < MAX_ACTIVITY_PAGES; page += 1) {
+    const from = page * ACTIVITY_PAGE;
+    const { data, error } = await supabase
+      .rpc('activity_buckets', {
+        p_unit: args.unit,
+        p_from: args.from,
+        p_to: args.to,
+        p_source: args.source,
+        p_topic: args.topic,
+      })
+      .range(from, from + ACTIVITY_PAGE - 1);
+    if (error) {
+      if (/schema cache|could not find the function/i.test(error.message)) {
+        throw new Error('Activity counts are not available until activity_buckets is on the database.');
+      }
+      throw new Error(error.message);
     }
-    throw new Error(error.message);
+    const batch = ((data ?? []) as ActivityRow[]).map((row) => ({
+      bucket: String(row.bucket).slice(0, 10),
+      bookmarks: Number(row.bookmarks),
+      chats: Number(row.chats),
+    }));
+    buckets.push(...batch);
+    if (batch.length < ACTIVITY_PAGE) {
+      return buckets;
+    }
   }
-  return ((data ?? []) as ActivityRow[]).map((row) => ({
-    bucket: String(row.bucket).slice(0, 10),
-    bookmarks: Number(row.bookmarks),
-    chats: Number(row.chats),
-  }));
+  throw new Error('This range has more activity than this pass can read.');
 }
 
 let topicCache: string[] | null = null;
