@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActivityChart } from '@/components/ActivityChart';
 import { PrimaryButton } from '@/components/Buttons';
+import { DateRangeField } from '@/components/DateRangeField';
 import { MonthChart, SourceSplit, TopicBars } from '@/components/Charts';
 import { CloseIcon } from '@/components/Icons';
 import { Banner, ErrorState, StatsSkeleton } from '@/components/StateViews';
@@ -48,7 +49,7 @@ const PRESETS: { id: RangePreset; label: string; testID: string }[] = [
 ];
 
 export default function StatsScreen() {
-  const { palette, name } = useTheme();
+  const { palette } = useTheme();
   const type = useType();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -224,21 +225,19 @@ export default function StatsScreen() {
       ) : null}
       {preset === 'custom' ? (
         <View style={styles.dates}>
-          <DateField
+          <DateRangeField
             label="From"
             testID="stats-from"
             value={draftFrom}
-            keyboard={name}
             onChange={(value) => {
               setDraftFrom(value);
               setTooltip(null);
             }}
           />
-          <DateField
+          <DateRangeField
             label="To"
             testID="stats-to"
             value={draftTo}
-            keyboard={name}
             onChange={(value) => {
               setDraftTo(value);
               setTooltip(null);
@@ -581,59 +580,6 @@ function Chip({ label, testID, onPress }: { label: string; testID: string; onPre
   );
 }
 
-function DateField({
-  label,
-  testID,
-  value,
-  keyboard,
-  onChange,
-}: {
-  label: string;
-  testID: string;
-  value: string | null;
-  keyboard: 'light' | 'dark';
-  onChange: (value: string | null) => void;
-}) {
-  const { palette } = useTheme();
-  const type = useType();
-  const [focused, setFocused] = useState(false);
-  return (
-    <View style={styles.dateField}>
-      <Text style={[styles.dateLabel, { color: palette.textSecondary, fontFamily: type.sansMedium }]}>{label}</Text>
-      <TextInput
-        testID={testID}
-        value={value ?? ''}
-        onChangeText={(text) => {
-          onChange(text.length === 0 ? null : text);
-        }}
-        placeholder="YYYY-MM-DD"
-        placeholderTextColor={palette.textMuted}
-        accessibilityLabel={`${label} date, YYYY-MM-DD`}
-        keyboardType="numbers-and-punctuation"
-        keyboardAppearance={keyboard}
-        maxLength={10}
-        autoCapitalize="none"
-        autoCorrect={false}
-        onFocus={() => {
-          setFocused(true);
-        }}
-        onBlur={() => {
-          setFocused(false);
-        }}
-        style={[
-          styles.dateInput,
-          {
-            color: palette.text,
-            borderColor: focused ? palette.accent : palette.border,
-            backgroundColor: palette.input,
-            fontFamily: type.sans,
-          },
-        ]}
-      />
-    </View>
-  );
-}
-
 function Tile({
   label,
   value,
@@ -727,20 +673,6 @@ const styles = StyleSheet.create({
   dates: {
     flexDirection: 'row',
     gap: 8,
-  },
-  dateField: {
-    flex: 1,
-    gap: 6,
-  },
-  dateLabel: {
-    fontSize: 13,
-  },
-  dateInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    minHeight: 46,
-    paddingHorizontal: 12,
-    fontSize: 15,
   },
   hint: {
     fontSize: 13,
