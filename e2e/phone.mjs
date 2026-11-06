@@ -5,8 +5,11 @@ import { chromium, devices } from 'playwright-core';
 
 const APP = process.env.APP ?? 'http://127.0.0.1:44521';
 const OUT = '/opt/cursor/artifacts';
-const ANON =
-  'your-supabase-anon-key';
+const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+if (!ANON) {
+  console.error('Set EXPO_PUBLIC_SUPABASE_ANON_KEY before running e2e/phone.mjs');
+  process.exit(1);
+}
 const REST = 'https://your-project.supabase.co/rest/v1/items';
 const RPC = 'https://your-project.supabase.co/rest/v1/rpc/activity_buckets';
 const TOPICS = [
