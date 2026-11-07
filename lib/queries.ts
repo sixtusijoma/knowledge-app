@@ -1,5 +1,13 @@
 import type { ActivityBucket, ActivityUnit } from '@/lib/activity';
 import { resolveDateRange } from '@/lib/filters';
+import {
+  filterSampleItems,
+  findSampleItem,
+  sampleActivity,
+  sampleStatRows,
+  sampleTopics,
+} from '@/lib/sample-library';
+import { isSampleMode } from '@/lib/sample-mode';
 import { supabase } from '@/lib/supabase';
 import { TOPICS } from '@/lib/topics';
 import type { Item, ItemFilters, Source, StatRow } from '@/lib/types';
@@ -41,6 +49,14 @@ export async function fetchItems(args: {
   search: string;
   page: number;
 }): Promise<{ items: Item[]; count: number | null }> {
+  if (isSampleMode()) {
+    const matched = filterSampleItems(args.filters, args.search);
+    const from = args.page * PAGE_SIZE;
+    return {
+      items: matched.slice(from, from + PAGE_SIZE).map(normalizeItem),
+      count: matched.length,
+    };
+  }
   let query = supabase.from('items').select(ITEM_COLUMNS, { count: 'exact' });
   const trimmed = args.search.trim();
   if (trimmed.length > 0) {
@@ -78,6 +94,13 @@ export async function fetchItem(id: string): Promise<Item | null> {
   if (!UUID_PATTERN.test(id)) {
     return null;
   }
+  if (isSampleMode()) {
+    const sample = findSampleItem(id);
+    if (!sample) {
+      return null;
+    }
+    return normalizeItem(sample);
+  }
   const { data, error } = await supabase.from('items').select(ITEM_COLUMNS).eq('id', id).maybeSingle();
   if (error) {
     throw new Error(error.message);
@@ -90,6 +113,9 @@ export async function fetchItem(id: string): Promise<Item | null> {
 
 // Pages in insertion order so rows added during the scan land on the last page instead of shifting earlier ones.
 export async function fetchStatRows(): Promise<StatRow[]> {
+  if (isSampleMode()) {
+    return sampleStatRows();
+  }
   const rows: StatRow[] = [];
   for (let page = 0; page < MAX_STAT_PAGES; page += 1) {
     const from = page * STAT_PAGE;
@@ -128,6 +154,9 @@ export async function fetchActivity(args: {
   source: Source | null;
   topic: string | null;
 }): Promise<ActivityBucket[]> {
+  if (isSampleMode()) {
+    return sampleActivity(args);
+  }
   const buckets: ActivityBucket[] = [];
   for (let page = 0; page < MAX_ACTIVITY_PAGES; page += 1) {
     const from = page * ACTIVITY_PAGE;
@@ -169,6 +198,11 @@ export function clearTopicCache(): void {
 
 // One exact count per known topic, so a topic with no rows never gets a chip.
 export function fetchPresentTopics(): Promise<string[]> {
+  if (isSampleMode()) {
+    const present = sampleTopics();
+    topicCache = present;
+    return Promise.resolve(present);
+  }
   if (topicCache) {
     return Promise.resolve(topicCache);
   }

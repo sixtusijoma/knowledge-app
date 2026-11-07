@@ -34,6 +34,7 @@ import {
   type Stats,
   type StatsSelection,
 } from '@/lib/stats';
+import { isSampleMode } from '@/lib/sample-mode';
 import { useTheme, useType } from '@/lib/theme';
 import type { Source } from '@/lib/types';
 import { useActivity } from '@/lib/use-activity';
@@ -114,7 +115,7 @@ export default function StatsScreen() {
     loading: activity.loading && phoneBuckets === null,
     error: phoneBuckets ? null : activity.error,
     retry: activity.retry,
-    sourceLabel: activity.buckets ? 'Counted in the database.' : phoneBuckets ? 'Counted on this phone.' : null,
+    sourceLabel: activitySourceLabel(Boolean(activity.buckets), Boolean(phoneBuckets)),
   };
 
   const chartOn = chartSelectionActive(selection);
@@ -172,6 +173,9 @@ export default function StatsScreen() {
 
   const rangeActive = Boolean(views && (views.range.from || views.range.to));
   let deck = 'Live counts from every saved entry.';
+  if (isSampleMode()) {
+    deck = 'Counts from the sample library.';
+  }
   if (rangeActive) {
     deck = 'Every chart is limited to this date range.';
   }
@@ -371,6 +375,26 @@ export default function StatsScreen() {
   );
 }
 
+function updatedLabel(updatedAt: Date): string {
+  if (isSampleMode()) {
+    return 'Sample rows only. Nothing was loaded from Supabase.';
+  }
+  return `Counted from Supabase at ${formatClock(updatedAt)}`;
+}
+
+function activitySourceLabel(fromDatabase: boolean, fromPhone: boolean): string | null {
+  if (fromDatabase) {
+    if (isSampleMode()) {
+      return 'Counted from the sample library.';
+    }
+    return 'Counted in the database.';
+  }
+  if (fromPhone) {
+    return 'Counted on this phone.';
+  }
+  return null;
+}
+
 function rangeChipLabel(preset: RangePreset, range: DateRange): string | null {
   if (preset === 'all') {
     return null;
@@ -515,7 +539,7 @@ function StatsBody({
       </Panel>
       {updatedAt ? (
         <Text testID="stats-updated" style={[styles.footnote, { color: palette.textMuted, fontFamily: type.sans }]}>
-          {`Counted from Supabase at ${formatClock(updatedAt)}`}
+          {updatedLabel(updatedAt)}
         </Text>
       ) : null}
     </View>
