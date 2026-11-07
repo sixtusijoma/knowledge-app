@@ -4,6 +4,10 @@ Phone-first viewer for a library of saved bookmarks and chats. Mostly AI-generat
 
 Entries live in Supabase (`public.items`). The app reads that table. A real library loads only when `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are set. This repository does not contain anyone’s saved bookmarks or chats.
 
+## Why I made this
+
+I wanted a central place to view my X bookmarks and AI chats. I also wanted to see stats like bookmarks and chats per day, topics, and how activity changes over time.
+
 ## Features
 
 - **Feed.** Newest first, 20 at a time, infinite scroll, and pull to refresh.
