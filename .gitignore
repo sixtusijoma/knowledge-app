@@ -16,6 +16,7 @@ expo-env.d.ts
 *.p8
 *.p12
 *.key
+*.pem
 *.mobileprovision
 
 # Metro
@@ -28,14 +29,24 @@ yarn-error.*
 
 # macOS
 .DS_Store
-*.pem
 
-# local env files
+# local env files — keep the placeholder example
 .env
-.env*.local
+.env.*
+!.env.example
 
-# private specs
+# private specs, dumps, and exports
 uploads/
+dumps/
+exports/
+private/
+*.dump
+*.sql.gz
+*.sqlite
+*.sqlite3
+*.db
+credentials.json
+service-account*.json
 
 # typescript
 *.tsbuildinfo
