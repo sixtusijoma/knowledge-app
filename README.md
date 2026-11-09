@@ -6,7 +6,7 @@ Entries live in Supabase (`public.items`). The app reads that table. A real libr
 
 ## Why I made this
 
-I wanted a central place to view my X bookmarks and AI chats. I also wanted to see stats like bookmarks and chats per day, topics, and how activity changes over time.
+I wanted a central place to view my X bookmarks and AI chats. I found the bookmarks search in X to be unreliable, so I wanted a place I could search and browse them myself. I also wanted to see stats like bookmarks and chats per day, topics, and how activity changes over time.
 
 ## Features
 
